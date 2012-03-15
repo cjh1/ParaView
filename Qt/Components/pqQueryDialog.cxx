@@ -55,8 +55,11 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkSMProperty.h"
 #include "vtkSMStringVectorProperty.h"
 #include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMSourceProxy.h"
 #include "vtkSMViewProxy.h"
+#include "vtkQuerySelectionSource.h"
+#include "vtkPVCompositeDataInformation.h"
 
 #include <QList>
 
@@ -179,7 +182,8 @@ void pqQueryDialog::setupSpreadSheet()
     {
     return;
     }
-  vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
+  vtkSMSessionProxyManager* pxm =
+      this->Internals->source->currentPort()->getSource()->proxyManager();
 
   vtkSMProxy* repr = pxm->NewProxy("representations", "SpreadSheetRepresentation");
   // we always want to show all the blocks in the dataset, since we don't have a
@@ -260,12 +264,9 @@ void pqQueryDialog::addClause()
     }
 
   pqQueryClauseWidget* clause = new pqQueryClauseWidget(this);
-  QObject::connect(clause, SIGNAL(removeClause()), this, SLOT(removeClause()));
-  if (this->Internals->Clauses.size() == 0)
-    {
-    // don't allow removal of the first clause.
-    clause->setRemovable(false);
-    }
+
+  // connect help requested signal
+  connect(clause, SIGNAL(helpRequested()), this, SIGNAL(helpRequested()));
 
   int attr_type = this->Internals->selectionType->itemData(
     this->Internals->selectionType->currentIndex()).toInt();
@@ -281,31 +282,33 @@ void pqQueryDialog::addClause()
 }
 
 //-----------------------------------------------------------------------------
-void pqQueryDialog::removeClause()
-{
-  pqQueryClauseWidget* clause =
-      qobject_cast<pqQueryClauseWidget*>(this->sender());
-  if (clause)
-    {
-    this->Internals->Clauses.removeAll(clause);
-    delete clause;
-    }
-}
-
-//-----------------------------------------------------------------------------
 void pqQueryDialog::runQuery()
 {
-  if (this->Internals->Clauses.size() == 0)
-    {
-    return; // no query to run.
-    }
-
-  vtkSMProxy* selSource = this->Internals->Clauses[0]->newSelectionSource();
-  if (!selSource)
+  if(this->Internals->Clauses.isEmpty())
     {
     return;
     }
-  selSource->UpdateVTKObjects();
+
+  // create selection source
+  vtkSMProxy* selectionSource = this->Internals->Clauses[0]->newSelectionSource();
+    if (!selectionSource)
+      {
+      return;
+      }
+
+  int attr_type = this->Internals->selectionType->itemData(
+    this->Internals->selectionType->currentIndex()).toInt();
+
+  if(attr_type == vtkDataObject::FIELD_ASSOCIATION_CELLS)
+    {
+    vtkSMPropertyHelper(selectionSource, "FieldType").Set(vtkSelectionNode::CELL);
+    }
+  else if(attr_type == vtkDataObject::FIELD_ASSOCIATION_POINTS)
+    {
+    vtkSMPropertyHelper(selectionSource, "FieldType").Set(vtkSelectionNode::POINT);
+    }
+
+  selectionSource->UpdateVTKObjects();
 
   this->setupSpreadSheet();
 
@@ -314,13 +317,10 @@ void pqQueryDialog::runQuery()
   this->Internals->spreadsheet->setModel(NULL);
 
   this->Internals->source->currentPort()->setSelectionInput(
-      vtkSMSourceProxy::SafeDownCast(selSource), 0);
-  selSource->Delete();
+      vtkSMSourceProxy::SafeDownCast(selectionSource), 0);
+  selectionSource->Delete();
 
   this->Internals->source->currentPort()->renderAllViews();
-
-  int attr_type = this->Internals->selectionType->itemData(
-    this->Internals->selectionType->currentIndex()).toInt();
 
   vtkSMProxy* repr = this->Internals->RepresentationProxy;
   // Pass the chosen attribute type to the spreasheet so we show cells or

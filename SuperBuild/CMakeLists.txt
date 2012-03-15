@@ -44,13 +44,6 @@ set(CMAKE_MODULE_PATH
   ${CMAKE_MODULE_PATH}
   )
 
-#------------------------------------------------------------------------------
-# Configure Common environment file
-#------------------------------------------------------------------------------
-
-configure_file(${ParaViewSuperBuild_CMAKE_SOURCE_DIR}/paraview_common_environment.cmake.in
-  ${ParaViewSuperBuild_CMAKE_BINARY_DIR}/paraview_common_environment.cmake @ONLY)
-
 #-----------------------------------------------------------------------------
 # Enable and setup External project global properties
 #-----------------------------------------------------------------------------
@@ -125,10 +118,18 @@ endif()
 
 # We aren't interested in seeing third party compiler warnings.
 set(pv_tpl_compiler_args ${pv_compiler_args})
-string(REPLACE "/W3" "/W0" pv_tpl_cxx_flags "${pv_tpl_cxx_flags}")
-string(REPLACE "/W4" "/W0" pv_tpl_cxx_flags "${pv_tpl_cxx_flags}")
-string(REPLACE "/W3" "/W0" pv_tpl_c_flags "${pv_tpl_c_flags}")
-string(REPLACE "/W4" "/W0" pv_tpl_c_flags "${pv_tpl_c_flags}")
+string(REPLACE " /W3" "" pv_tpl_cxx_flags "${pv_tpl_cxx_flags}")
+string(REPLACE " /W4" "" pv_tpl_cxx_flags "${pv_tpl_cxx_flags}")
+string(REPLACE " /W3" "" pv_tpl_c_flags "${pv_tpl_c_flags}")
+string(REPLACE " /W4" "" pv_tpl_c_flags "${pv_tpl_c_flags}")
+
+if(WIN32)
+  set(pv_tpl_c_flags "/w ${pv_tpl_c_flags}")
+  set(pv_tpl_cxx_flags "/w ${pv_tpl_cxx_flags}")
+else()
+  set(pv_tpl_c_flags "-w ${pv_tpl_c_flags}")
+  set(pv_tpl_cxx_flags "-w ${pv_tpl_cxx_flags}")
+endif()
 
 if(WIN32)
   set(_LINK_LIBRARY_SUFFIX .lib)
@@ -148,6 +149,22 @@ endif()
 #------------------------------------------------------------------------------
 configure_file(${ParaViewSuperBuild_SOURCE_DIR}/CTestCustom.ctest.in
   ${ParaViewSuperBuild_BINARY_DIR}/CTestCustom.ctest @ONLY)
+
+#------------------------------------------------------------------------------
+# Configure Common environment files
+#------------------------------------------------------------------------------
+
+configure_file(${ParaViewSuperBuild_CMAKE_SOURCE_DIR}/paraview_common_environment.cmake.in
+  ${ParaViewSuperBuild_CMAKE_BINARY_DIR}/paraview_common_environment.cmake @ONLY)
+
+configure_file(${ParaViewSuperBuild_CMAKE_SOURCE_DIR}/paraview_configure_step.cmake.in
+  ${ParaViewSuperBuild_CMAKE_BINARY_DIR}/paraview_configure_step.cmake @ONLY)
+
+configure_file(${ParaViewSuperBuild_CMAKE_SOURCE_DIR}/paraview_make_step.cmake.in
+  ${ParaViewSuperBuild_CMAKE_BINARY_DIR}/paraview_make_step.cmake @ONLY)
+
+configure_file(${ParaViewSuperBuild_CMAKE_SOURCE_DIR}/paraview_install_step.cmake.in
+  ${ParaViewSuperBuild_CMAKE_BINARY_DIR}/paraview_install_step.cmake @ONLY)
 
 #------------------------------------------------------------------------------
 # Establish Target Dependencies based on Selected Options
@@ -218,6 +235,8 @@ if(NOT APPLE)
     -DMPI_DIR:PATH=${MPI_INSTALL}
     -DPARAVIEW_USE_MPI:BOOL=ON
     -DMPIEXEC:FILEPATH=${MPIEXEC}
+    -DMPI_C_COMPILER:FILEPATH=${MPICC}
+    -DMPI_CXX_COMPILER:FILEPATH=${MPICXX}
     -DVTK_MPIRUN_EXE:FILEPATH=${MPIEXEC}
     -DMPI_INCLUDE_PATH:PATH=${MPI_INCLUDE_PATH}
     -DMPI_LIBRARY:FILEPATH=${MPI_LIBRARY}
@@ -229,7 +248,7 @@ if(NOT APPLE)
 
   set(NUMPY_dependencies python)
 
-  if(CMAKE_Fortran_COMPILER)
+  if(CMAKE_Fortran_COMPILER AND NOT WIN32)
     include(External_LAPACK)
     list(APPEND NUMPY_dependencies LAPACK)
     list(APPEND ParaView_dependencies LAPACK)
@@ -341,9 +360,9 @@ if(ENABLE_YT)
   set(h5py_dependencies NUMPY HDF5 Cython)
   include(External_h5py)
 
-  set(yt_dependencies NUMPY HDF5 MPL h5py)
+  set(yt_dependencies NUMPY HDF5 MPL h5py Cython)
   if(NOT APPLE)
-    set(distribute_dependencies PYTHON)
+    set(distribute_dependencies python)
     include(External_distribute)
     list(APPEND yt_dependencies distribute)
   endif()
@@ -353,35 +372,41 @@ if(ENABLE_YT)
 endif()
 
 # Build Silo
-list(APPEND Silo_dependencies zlib HDF5)
-list(APPEND ParaView_dependencies Silo)
-include(External_Silo)
-set(Silo_ARGS
-  -DVISIT_BUILD_READER_Silo:BOOL=ON
-  -DSILO_INCLUDE_DIR:PATH=${SILO_INCLUDE_DIR}
-  -DSILO_LIBRARY:FILEPATH=${SILO_LIBRARY})
+option(PARAVIEW_BUILD_Silo "Build Silo library" ON)
+if(PARAVIEW_BUILD_Silo)
+  list(APPEND Silo_dependencies zlib HDF5)
+  list(APPEND ParaView_dependencies Silo)
+  include(External_Silo)
+  set(Silo_ARGS
+    -DVISIT_BUILD_READER_Silo:BOOL=ON
+    -DSILO_INCLUDE_DIR:PATH=${SILO_INCLUDE_DIR}
+    -DSILO_LIBRARY:FILEPATH=${SILO_LIBRARY})
 
-if(WIN32)
-  list(APPEND PARAVIEW_FIXUP_BUNDLE_SEARCH_PATHS ${Silo_install}/bin)
-else()
-  get_filename_component(SILO_DIR "${SILO_LIBRARY}" PATH)
-  list(APPEND PARAVIEW_FIXUP_BUNDLE_SEARCH_PATHS ${SILO_DIR})
+  if(WIN32)
+    list(APPEND PARAVIEW_FIXUP_BUNDLE_SEARCH_PATHS ${Silo_install}/bin)
+  else()
+    get_filename_component(SILO_DIR "${SILO_LIBRARY}" PATH)
+    list(APPEND PARAVIEW_FIXUP_BUNDLE_SEARCH_PATHS ${SILO_DIR})
+  endif()
 endif()
 
 # Build CGNS
-list(APPEND CGNS_dependencies zlib HDF5)
-list(APPEND ParaView_dependencies CGNS)
-include(External_CGNS)
-set(CGNS_ARGS
-  -DVISIT_BUILD_READER_CGNS:BOOL=ON
-  -DCGNS_INCLUDE_DIR:PATH=${CGNS_INCLUDE_DIR}
-  -DCGNS_LIBRARY:FILEPATH=${CGNS_LIBRARY})
+option(PARAVIEW_BUILD_CGNS "Build CGNS library" ON)
+if(PARAVIEW_BUILD_CGNS)
+  list(APPEND CGNS_dependencies zlib HDF5)
+  list(APPEND ParaView_dependencies CGNS)
+  include(External_CGNS)
+  set(CGNS_ARGS
+    -DVISIT_BUILD_READER_CGNS:BOOL=ON
+    -DCGNS_INCLUDE_DIR:PATH=${CGNS_INCLUDE_DIR}
+    -DCGNS_LIBRARY:FILEPATH=${CGNS_LIBRARY})
 
-if(WIN32)
-  list(APPEND PARAVIEW_FIXUP_BUNDLE_SEARCH_PATHS ${CGNS_install}/lib)
-else()
-  get_filename_component(CGNS_DIR "${CGNS_LIBRARY}" PATH)
-  list(APPEND PARAVIEW_FIXUP_BUNDLE_SEARCH_PATHS ${CGNS_DIR})
+  if(WIN32)
+    list(APPEND PARAVIEW_FIXUP_BUNDLE_SEARCH_PATHS ${CGNS_install}/lib)
+  else()
+    get_filename_component(CGNS_DIR "${CGNS_LIBRARY}" PATH)
+    list(APPEND PARAVIEW_FIXUP_BUNDLE_SEARCH_PATHS ${CGNS_DIR})
+  endif()
 endif()
 
 if(NOT WIN32)
@@ -401,7 +426,7 @@ list(APPEND ParaView_dependencies VRPN)
 include(External_VRPN)
 set(VRPN_ARGS
   -DPARAVIEW_BUILD_PLUGIN_VRPNPlugin:BOOL=ON
-  -DVRPN_LIBRARY:FILE_PATH=${VRPN_LIBRARY}
+  -DVRPN_LIBRARY:FILEPATH=${VRPN_LIBRARY}
   -DVRPN_INCLUDE_DIR:PATH=${VRPN_INCLUDE_DIR})
 
 if(WIN32)
@@ -484,7 +509,7 @@ endif()
 
 set(PARAVIEW_EXTRA_INSTALL_RULES)
 
-# Install libz2 until we start building it ourselves.
+# Install libbz2 until we start building it ourselves.
 if(UNIX AND NOT APPLE)
   list(APPEND PARAVIEW_EXTRA_INSTALL_RULES ${CMAKE_CURRENT_SOURCE_DIR}/install_bz2.cmake)
 endif()
@@ -511,8 +536,7 @@ list(REMOVE_DUPLICATES PARAVIEW_FIXUP_BUNDLE_SEARCH_PATHS)
 # Configure and build ParaView
 #------------------------------------------------------------------------------
 
-set(proj ParaView)
-ExternalProject_Add(${proj}
+ExternalProject_Add(ParaView
   DEPENDS ${ParaView_dependencies}
   DOWNLOAD_COMMAND ""
   SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/..
@@ -578,3 +602,72 @@ ExternalProject_Add(${proj}
     ${DOC_ARGS}
   INSTALL_COMMAND ${CMAKE_COMMAND} -E copy_if_different ${ParaViewSuperBuild_SOURCE_DIR}/.plugins <BINARY_DIR>/bin/
   )
+
+#-----------------------------------------------------------------------------
+# Configure testing support.
+include(CTest)
+if(BUILD_TESTING)
+  enable_testing()
+
+  set(Testing_Temporary_dir ${ParaViewSuperBuild_BINARY_DIR}/Testing/Temporary)
+  make_directory(${Testing_Temporary_dir})
+  
+  ExternalProject_Get_Property(ParaView binary_dir)
+  set(ParaView_BINARY_DIR "${binary_dir}")
+  
+  include(${ParaViewSuperBuild_SOURCE_DIR}/../CMake/ParaViewDetermineVersion.cmake)
+  
+  find_package(Git)
+  
+  determine_version(
+    ${ParaViewSuperBuild_SOURCE_DIR}/..
+    ${GIT_EXECUTABLE}
+    ${ParaViewSuperBuild_SOURCE_DIR}/../CMake/.paraview.version
+    "PARAVIEW")
+
+  # Copied from Applications\ParaView\CMakeLists.txt
+  set(_paraview_version_patch_full "${PARAVIEW_VERSION_PATCH}")
+  if(NOT "${PARAVIEW_VERSION_PATCH_EXTRA}" STREQUAL "")
+    set(_paraview_version_patch_full 
+      "${PARAVIEW_VERSION_PATCH}-${PARAVIEW_VERSION_PATCH_EXTRA}"
+    )
+  endif(NOT "${PARAVIEW_VERSION_PATCH_EXTRA}" STREQUAL "")
+
+  set(PARAVIEW_CPACK_VERSION
+    ${PARAVIEW_VERSION_MAJOR}.${PARAVIEW_VERSION_MINOR}.${_paraview_version_patch_full}
+  )
+
+  # Copied from ParaViewBrandingCPack.cmake - Should put in own file/function
+  IF (CMAKE_SYSTEM_PROCESSOR MATCHES "unknown")
+    SET (CMAKE_SYSTEM_PROCESSOR "x86")
+  ENDIF (CMAKE_SYSTEM_PROCESSOR MATCHES "unknown")
+  IF(NOT DEFINED CPACK_SYSTEM_NAME)
+    SET(CPACK_SYSTEM_NAME ${CMAKE_SYSTEM_NAME}-${CMAKE_SYSTEM_PROCESSOR})
+  ENDIF(NOT DEFINED CPACK_SYSTEM_NAME)
+  IF(${CPACK_SYSTEM_NAME} MATCHES Windows)
+    IF(CMAKE_CL_64)
+      SET(CPACK_SYSTEM_NAME Win64-${CMAKE_SYSTEM_PROCESSOR})
+    ELSE(CMAKE_CL_64)
+      SET(CPACK_SYSTEM_NAME Win32-${CMAKE_SYSTEM_PROCESSOR})
+    ENDIF(CMAKE_CL_64)
+  ENDIF(${CPACK_SYSTEM_NAME} MATCHES Windows)
+
+  if(${CPACK_SYSTEM_NAME} MATCHES Darwin AND CMAKE_OSX_ARCHITECTURES)
+    list(LENGTH CMAKE_OSX_ARCHITECTURES _length)
+    IF(_length GREATER 1)
+      SET(CPACK_SYSTEM_NAME Darwin-Universal)
+    ELSE(_length GREATER 1)
+      SET(CPACK_SYSTEM_NAME Darwin-${CMAKE_OSX_ARCHITECTURES})
+    ENDIF(_length GREATER 1)
+  endif(${CPACK_SYSTEM_NAME} MATCHES Darwin AND CMAKE_OSX_ARCHITECTURES)
+
+  set(CPACK_PACKAGE_FILE_NAME ParaView-${PARAVIEW_CPACK_VERSION}-${CPACK_SYSTEM_NAME})
+  
+  find_path(PARAVIEW_DATA_ROOT ParaViewData.readme
+    ${ParaView_SOURCE_DIR}/ParaViewData
+    ${ParaView_SOURCE_DIR}/../ParaViewData
+    $ENV{PARAVIEW_DATA_ROOT}
+  )
+
+  add_subdirectory(Testing)
+endif()

@@ -34,7 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqPropertyLinks.h"
 
 // standard includes
-#include <vtkstd/set>
+#include <set>
 
 // Qt includes
 #include <QString>
@@ -48,6 +48,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // VTK includes
 #include "vtkEventQtSlotConnect.h"
+#include <vtkWeakPointer.h>
 
 // ParaView includes
 #include "vtkSMProperty.h"
@@ -68,8 +69,8 @@ public:
     {
     }
 
-  vtkSMProxy* Proxy;
-  vtkSMProperty* Property;
+  vtkWeakPointer<vtkSMProxy> Proxy;
+  vtkWeakPointer<vtkSMProperty> Property;
   int Index;
 
   QPointer<QObject> QtObject;
@@ -151,9 +152,9 @@ void pqPropertyLinksConnection::clearOutOfSync() const
   this->Internal->OutOfSync = false;
 }
 
-void pqPropertyLinksConnection::setCreatingConnection(bool creatingConnection)
+void pqPropertyLinksConnection::setCreatingConnection(bool b)
 {
-  this->Internal->CreatingConnection = creatingConnection;
+  this->Internal->CreatingConnection = b;
 }
 
 bool pqPropertyLinksConnection::creatingConnection() const
@@ -179,6 +180,7 @@ void pqPropertyLinksConnection::smLinkedPropertyChanged()
 {
   this->Internal->Updating = false;
   this->Internal->OutOfSync = true;
+  bool previousBlockValue = false;
 
   pqSMAdaptor::PropertyValueType propertyValueType =
       this->Internal->UseUncheckedProperties ? pqSMAdaptor::UNCHECKED : pqSMAdaptor::CHECKED;
@@ -189,7 +191,7 @@ void pqPropertyLinksConnection::smLinkedPropertyChanged()
     // in the process of creating the connection
     if(this->Internal->CreatingConnection)
       {
-      this->Internal->QtObject->blockSignals(true);
+      previousBlockValue = this->Internal->QtObject->blockSignals(true);
       }
 
     // get the property of the object
@@ -300,23 +302,13 @@ void pqPropertyLinksConnection::smLinkedPropertyChanged()
       break;
     case pqSMAdaptor::FIELD_SELECTION:
         {
-        if(this->Internal->Index == 0)
+        prop = pqSMAdaptor::getFieldSelection(this->Internal->Property,
+                                              propertyValueType);
+
+        if(prop != old)
           {
-          prop = pqSMAdaptor::getFieldSelectionMode(this->Internal->Property, propertyValueType);
-          if(prop != old)
-            {
-            this->Internal->QtObject->setProperty(this->Internal->QtProperty, 
-              prop);
-            }
-          }
-        else
-          {
-          prop = pqSMAdaptor::getFieldSelectionScalar(this->Internal->Property, propertyValueType);
-          if(prop != old)
-            {
-            this->Internal->QtObject->setProperty(this->Internal->QtProperty, 
-              prop);
-            }
+          this->Internal->QtObject->setProperty(this->Internal->QtProperty,
+                                                prop);
           }
         }
     case pqSMAdaptor::UNKNOWN:
@@ -328,7 +320,7 @@ void pqPropertyLinksConnection::smLinkedPropertyChanged()
     // them because we were creating the connection
     if(this->Internal->CreatingConnection)
       {
-      this->Internal->QtObject->blockSignals(false);
+      this->Internal->QtObject->blockSignals(previousBlockValue);
       }
     }
 
@@ -476,28 +468,14 @@ void pqPropertyLinksConnection::qtLinkedPropertyChanged()
 
       break;
     case pqSMAdaptor::FIELD_SELECTION:
-        if(this->Internal->Index == 0)
-          {
-          pqSMAdaptor::setFieldSelectionMode(this->Internal->Property,
-                                             prop.toString(),
-                                             propertyValueType);
+        pqSMAdaptor::setFieldSelection(this->Internal->Property,
+                                       prop.toStringList(),
+                                       propertyValueType);
 
           if(this->Internal->AutoUpdate && !this->Internal->UseUncheckedProperties)
             {
             this->Internal->Proxy->UpdateVTKObjects();
             }
-          }
-        else
-          {
-          pqSMAdaptor::setFieldSelectionScalar(this->Internal->Property,
-                                               prop.toString(),
-                                               propertyValueType);
-
-          if(this->Internal->AutoUpdate && !this->Internal->UseUncheckedProperties)
-            {
-            this->Internal->Proxy->UpdateVTKObjects();
-            }
-          }
 
         break;
     case pqSMAdaptor::UNKNOWN:

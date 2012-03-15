@@ -74,18 +74,17 @@ ParaViewMainWindow::ParaViewMainWindow()
     this->Internals->statisticsDock);
 
   this->setTabPosition(Qt::LeftDockWidgetArea, QTabWidget::North);
-  this->tabifyDockWidget(this->Internals->summaryDock, this->Internals->objectInspectorDock);
-  this->tabifyDockWidget(this->Internals->summaryDock, this->Internals->displayDock);
-  this->tabifyDockWidget(this->Internals->summaryDock, this->Internals->informationDock);
-  this->Internals->summaryDock->raise();
+  this->tabifyDockWidget(this->Internals->objectInspectorDock, this->Internals->displayDock);
+  this->tabifyDockWidget(this->Internals->objectInspectorDock, this->Internals->informationDock);
+  this->Internals->objectInspectorDock->raise();
 
   // Enable automatic creation of representation on accept.
   this->Internals->objectInspector->setShowOnAccept(true);
 
   // Enable help for from the object inspector.
   QObject::connect(this->Internals->objectInspector,
-    SIGNAL(helpRequested(QString)),
-    this, SLOT(showHelpForProxy(const QString&)));
+    SIGNAL(helpRequested(const QString&, const QString&)),
+    this, SLOT(showHelpForProxy(const QString&, const QString&)));
 
   // Populate application menus with actions.
   pqParaViewMenuBuilders::buildFileMenu(*this->Internals->menu_File);
@@ -127,10 +126,9 @@ ParaViewMainWindow::~ParaViewMainWindow()
   delete this->Internals;
 }
 
-
 //-----------------------------------------------------------------------------
-void ParaViewMainWindow::showHelpForProxy(const QString& proxyname)
+void ParaViewMainWindow::showHelpForProxy(const QString& groupname, const
+  QString& proxyname)
 {
-  pqHelpReaction::showHelp(
-    QString("qthelp://paraview.org/paraview/%1.html").arg(proxyname));
+  pqHelpReaction::showProxyHelp(groupname, proxyname);
 }

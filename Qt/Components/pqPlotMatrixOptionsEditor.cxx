@@ -75,10 +75,10 @@ public:
   pqPlotMatrixOptionsChartSetting();
   ~pqPlotMatrixOptionsChartSetting() {}
 
+  QColor BackGroundColor;
   QColor AxisColor;
   QColor GridColor;
   QColor LabelColor;
-  QColor BackGroundColor;
   QFont LabelFont;
   int Notation;
   int Precision;
@@ -98,6 +98,7 @@ public:
   int getIndexForLocation(int location) const;
 
   QString CurrentPage;
+  vtkVector2f Gutter;
   
   //Title properties
   QFont TitleFont;
@@ -110,7 +111,6 @@ public:
   QMap<int, pqPlotMatrixOptionsChartSetting*> PlotData;
   int CurrentPlot;
   int Borders[4];
-  vtkVector2f Gutter;
 };
 
 //----------------------------------------------------------------------------
@@ -216,7 +216,7 @@ pqPlotMatrixOptionsEditor::pqPlotMatrixOptionsEditor(QWidget *widgetParent)
 
   // Connect up some signals and slots for the property links
   // These should really be cached locally
-  QObject::connect(this->Internal->Form->ChartTitle, SIGNAL(textEdited(QString)),
+  QObject::connect(this->Internal->Form->ChartTitle, SIGNAL(textChanged(QString)),
                    this, SIGNAL(changesAvailable()));
   QObject::connect(this->Internal->Form->LeftMargin, SIGNAL(valueChanged(int)),
     this, SIGNAL(changesAvailable()));
@@ -277,29 +277,27 @@ void pqPlotMatrixOptionsEditor::setPage(const QString &page)
   QStringList path = page.split(".", QString::SkipEmptyParts);
   this->Internal->Form->CurrentPlot = vtkScatterPlotMatrix::NOPLOT;
 
+  this->Internal->Form->frameScatterPlot->setVisible(0);
   if(path[0] == "General")
     {
     widget = this->Internal->Form->GeneralPlot;
     this->Internal->Form->CurrentPlot = vtkScatterPlotMatrix::NOPLOT;
-    this->Internal->Form->frameChart->setVisible(0);
     }
   else
     {
-    this->Internal->Form->frameChart->setVisible(1);
+    widget = this->Internal->Form->ActivePlot;
     
     if(path[0] == "Active Plot")
       {
-      widget = this->Internal->Form->ActivePlot;
       this->Internal->Form->CurrentPlot = vtkScatterPlotMatrix::ACTIVEPLOT;
       }
     else if(path[0] == "Scatter Plots")
       {
-      widget = this->Internal->Form->ScatterPlots;
+      this->Internal->Form->frameScatterPlot->setVisible(1);
       this->Internal->Form->CurrentPlot = vtkScatterPlotMatrix::SCATTERPLOT;
       }
     else if(path[0] == "Histogram Plots")
       {
-      widget = this->Internal->Form->HistogramPlots;
       this->Internal->Form->CurrentPlot = vtkScatterPlotMatrix::HISTOGRAM;
       }
     }
@@ -589,7 +587,7 @@ void pqPlotMatrixOptionsEditor::applyChartOptions()
   // Gutter size
   this->Internal->Form->Gutter.Set(
     this->Internal->Form->GutterX->value(),
-    this->Internal->Form->GutterX->value());
+    this->Internal->Form->GutterY->value());
   proxy->SetGutter(this->Internal->Form->Gutter);
 
   // Margin size
@@ -656,11 +654,11 @@ void pqPlotMatrixOptionsEditor::applyChartOptions()
                    static_cast<double>(color.blueF()));
     prop->SetOpacity(static_cast<double>(color.alphaF()));
     // Axis label font
-    QFont font = this->Internal->Form->PlotData[plotType]->LabelFont;
-    prop->SetFontFamilyAsString(font.family().toAscii().constData());
-    prop->SetFontSize(font.pointSize());
-    prop->SetBold(font.bold() ? 1 : 0);
-    prop->SetItalic(font.italic() ? 1 : 0);
+    QFont plotfont = this->Internal->Form->PlotData[plotType]->LabelFont;
+    prop->SetFontFamilyAsString(plotfont.family().toAscii().constData());
+    prop->SetFontSize(plotfont.pointSize());
+    prop->SetBold(plotfont.bold() ? 1 : 0);
+    prop->SetItalic(plotfont.italic() ? 1 : 0);
     // Axis label notation
     proxy->SetAxisLabelNotation(plotType,
       this->Internal->Form->PlotData[plotType]->Notation);
@@ -717,17 +715,17 @@ void pqPlotMatrixOptionsEditor::loadChartPage()
     this->Internal->Form->LabelPrecision->setValue(axis->Precision);
     this->Internal->Form->TooltipNotation->setCurrentIndex(axis->ToolTipNotation);
     this->Internal->Form->TooltipPrecision->setValue(axis->ToolTipPrecision);
-    this->blockSignals(false);
     }
+  this->blockSignals(false);
 }
 
-bool pqPlotMatrixOptionsEditor::pickFont(QLabel *label, QFont &font)
+bool pqPlotMatrixOptionsEditor::pickFont(QLabel *label, QFont &pfont)
 {
   bool ok = false;
-  font = QFontDialog::getFont(&ok, font, this);
+  pfont = QFontDialog::getFont(&ok, pfont, this);
   if(ok)
     {
-    this->updateDescription(label, font);
+    this->updateDescription(label, pfont);
     this->changesAvailable();
     return true;
     }

@@ -31,31 +31,35 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 =========================================================================*/
 #ifndef __vtkVRConnectionManager_h
 #define __vtkVRConnectionManager_h
-// --------------------------------------------------------------------includes
+#include "vtkPVVRConfig.h"
+
 #include <QObject>
 
-// -----------------------------------------------------------------pre-defines
 class vtkVRQueue;
 class vtkPVXMLElement;
 class vtkSMProxyLocator;
-class vtkVRPNConnection;
+#ifdef PARAVIEW_USE_VRUI
 class vtkVRUIConnection;
+#endif
+#ifdef PARAVIEW_USE_VRPN
+class vtkVRPNConnection;
+#endif
 
-// -----------------------------------------------------------------------class
 class vtkVRConnectionManager: public QObject
 {
   Q_OBJECT
   typedef QObject Superclass;
 public:
-  // ............................................................public-methods
   vtkVRConnectionManager(vtkVRQueue* quque, QObject* parent=0);
   virtual ~vtkVRConnectionManager();
-
+#ifdef PARAVIEW_USE_VRPN
   void add( vtkVRPNConnection* conn );
   void remove ( vtkVRPNConnection *conn );
+#endif
+#ifdef PARAVIEW_USE_VRUI
   void add( vtkVRUIConnection* conn );
   void remove ( vtkVRUIConnection *conn );
-
+#endif
   void clear();
 
 public slots:
@@ -70,19 +74,10 @@ public slots:
   // save the connection configuration
   void saveConnectionsConfiguration( vtkPVXMLElement* root );
 
-protected:
-  // ...........................................................protected-ivars
-
-protected:
-//BTX
-  // .......................................................................BTX
 private:
   Q_DISABLE_COPY(vtkVRConnectionManager);
   class pqInternals;
   pqInternals* Internals;
-
-//ETX
-  // .......................................................................ETX
 };
 
 #endif // __vtkVRConnectionManager_h

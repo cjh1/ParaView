@@ -38,10 +38,12 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqComponentsInit.h"
 #include "pqComponentsTestUtility.h"
 #include "pqCoreUtilities.h"
+#include "pqItemViewSearchWidget.h"
 #include "pqPQLookupTableManager.h"
 #include "pqQuickLaunchDialog.h"
 #include "pqSelectionManager.h"
 #include "pqSetName.h"
+#include "pqSpreadSheetViewModel.h"
 
 #ifdef PARAVIEW_ENABLE_PYTHON
 #include "pqPythonManager.h"
@@ -49,6 +51,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include <QAction>
 #include <QShortcut>
+#include <QApplication>
+#include <QAbstractItemView>
 
 //-----------------------------------------------------------------------------
 pqPVApplicationCore::pqPVApplicationCore(
@@ -106,13 +110,47 @@ void pqPVApplicationCore::quickLaunch()
         {
         // don't use QMenu::actions() since that includes only the top-level
         // actions.
-        dialog.addActions(menu->findChildren<QAction*>());
+        // --> BUT pqProxyGroupMenuManager in order to handle multi-server
+        //         setting properly add actions into an internal widget so
+        //         actions() should be used instead of findChildren()
+        if(menu->findChildren<QAction*>().size() == 0)
+          {
+          dialog.addActions(menu->actions());
+          }
+        else
+          {
+          dialog.addActions(menu->findChildren<QAction*>());
+          }
         }
       }
     dialog.exec();
     }
 }
 
+//-----------------------------------------------------------------------------
+void pqPVApplicationCore::startSearch()
+{
+  if(!QApplication::focusWidget())
+    {
+    return;
+    }
+  QAbstractItemView* focusItemView =
+    qobject_cast<QAbstractItemView*>(QApplication::focusWidget());
+  if(!focusItemView)
+    {
+    return;
+    }
+  // currently we don't support search on pqSpreadSheetViewModel
+  if(qobject_cast<pqSpreadSheetViewModel*>(focusItemView->model()))
+    {
+    return;
+    }
+
+  pqItemViewSearchWidget* searchDialog =
+    new pqItemViewSearchWidget(focusItemView);
+  searchDialog->setAttribute(Qt::WA_DeleteOnClose, true);
+  searchDialog->showSearchWidget();
+}
 //-----------------------------------------------------------------------------
 pqApplyPropertiesManager* pqPVApplicationCore::applyPropertiesManager() const
 {

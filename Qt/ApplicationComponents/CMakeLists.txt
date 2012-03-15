@@ -34,6 +34,7 @@ SET (MOC_HEADERS
   pqCameraUndoRedoReaction.h
   pqCategoryToolbarsBehavior.h
   pqChangePipelineInputReaction.h
+  pqChartSelectionReaction.h
   pqColorToolbar.h
   pqCollaborationBehavior.h
   pqCommandLineOptionsBehavior.h
@@ -67,6 +68,7 @@ SET (MOC_HEADERS
   pqPipelineContextMenuBehavior.h
   pqPluginActionGroupBehavior.h
   pqPluginDockWidgetsBehavior.h
+  pqPluginDocumentationBehavior.h
   pqProxyGroupMenuManager.h
   pqPVAnimationWidget.h
   pqPVApplicationCore.h
@@ -152,6 +154,8 @@ SET (SOURCE_FILES
   pqCategoryToolbarsBehavior.h
   pqChangePipelineInputReaction.cxx
   pqChangePipelineInputReaction.h
+  pqChartSelectionReaction.cxx
+  pqChartSelectionReaction.h
   pqCollaborationBehavior.cxx
   pqCollaborationBehavior.h
   pqColorToolbar.cxx
@@ -220,6 +224,8 @@ SET (SOURCE_FILES
   pqPluginActionGroupBehavior.h
   pqPluginDockWidgetsBehavior.cxx
   pqPluginDockWidgetsBehavior.h
+  pqPluginDocumentationBehavior.cxx
+  pqPluginDocumentationBehavior.h
   pqProxyGroupMenuManager.cxx
   pqProxyGroupMenuManager.h
   pqPVAnimationWidget.cxx

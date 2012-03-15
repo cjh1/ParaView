@@ -3,23 +3,21 @@
 set(OpenMPI_source "${CMAKE_CURRENT_BINARY_DIR}/OpenMPI")
 set(OpenMPI_build "${CMAKE_CURRENT_BINARY_DIR}/OpenMPI-build")
 set(OpenMPI_install "${CMAKE_CURRENT_BINARY_DIR}")
-message("CMAKE_Fortran_COMPILER ${CMAKE_Fortran_COMPILER}")
+
 if(CMAKE_Fortran_COMPILER)
-  message("Fortran Compiler!")
   if(CMAKE_Fortran_COMPILER_ID MATCHES "Intel" AND WIN32)
     include(DetectIntelFortranEnvironment)
     set(OpenMPI_EXTRA_ARGS 
-      -DCMAKE_Fortran_COMPILER:FILE_PATH=${intel_ifort_path}/ifort.exe
+      -DCMAKE_Fortran_COMPILER:FILEPATH=${intel_ifort_path}/ifort.exe
     )
-  message("setting ifort.")
   else()
     set(OpenMPI_EXTRA_ARGS 
-      -DCMAKE_Fortran_COMPILER:FILE_PATH=${CMAKE_Fortran_COMPILER}
+      -DCMAKE_Fortran_COMPILER:FILEPATH=${CMAKE_Fortran_COMPILER}
     )
-  list(APPEND OpenMPI_EXTRA_ARGS
-    -DOMPI_WANT_F77_BINDINGS:BOOL=ON
-    -DOMPI_WANT_F90_BINDINGS:BOOL=ON
-  )
+  #list(APPEND OpenMPI_EXTRA_ARGS
+  #  -DOMPI_WANT_F77_BINDINGS:BOOL=ON
+  #  -DOMPI_WANT_F90_BINDINGS:BOOL=ON
+  #)
   endif()
 endif()
 
@@ -61,7 +59,11 @@ if(WIN32)
   #set(MPI_LIBRARY optimized "${OpenMPI_install}/lib/libmpi${_LINK_LIBRARY_SUFFIX} debug ${OpenMPI_install}/lib/libmpid${_LINK_LIBRARY_SUFFIX}")
   set(MPI_LIBRARY ${OpenMPI_install}/lib/libmpi${_LINK_LIBRARY_SUFFIX})
   #set(MPI_EXTRA_LIBRARY optimized "${OpenMPI_install}/lib/libmpi_cxx${_LINK_LIBRARY_SUFFIX} debug ${OpenMPI_install}/lib/libmpi_cxxd${_LINK_LIBRARY_SUFFIX}")
-  set(MPI_EXTRA_LIBRARY "${OpenMPI_install}/lib/libmpi_cxx${_LINK_LIBRARY_SUFFIX}")
+  list(APPEND MPI_EXTRA_LIBRARY 
+    ${OpenMPI_install}/lib/libmpi_cxx${_LINK_LIBRARY_SUFFIX}
+    ${OpenMPI_install}/lib/libopen-pal${_LINK_LIBRARY_SUFFIX}
+    ${OpenMPI_install}/lib/libopen-rte${_LINK_LIBRARY_SUFFIX}
+  )
 else()
   set(MPI_LIBRARY ${OpenMPI_install}/lib/libmpi.a)
   set(MPI_EXTRA_LIBRARY ${OpenMPI_install}/lib/libmpi_cxx.a)

@@ -36,8 +36,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "ui_pqPlotMatrixDisplayPanel.h"
 
-pqPlotMatrixDisplayPanel::pqPlotMatrixDisplayPanel(pqRepresentation *representation, QWidget *parent)
-  : pqDisplayPanel(representation, parent)
+pqPlotMatrixDisplayPanel::pqPlotMatrixDisplayPanel(pqRepresentation *representation, QWidget *pWidget)
+  : pqDisplayPanel(representation, pWidget)
 {
   Ui::pqPlotMatrixDisplayPanel ui;
   ui.setupUi(this);
@@ -45,6 +45,11 @@ pqPlotMatrixDisplayPanel::pqPlotMatrixDisplayPanel(pqRepresentation *representat
   this->SettingsModel = new pqPlotSettingsModel(this);
   this->SettingsModel->setRepresentation(qobject_cast<pqDataRepresentation*>(representation));
   ui.Series->setModel(this->SettingsModel);
+  ui.Series->setAcceptDrops(true);
+  ui.Series->setDragEnabled(true);
+  ui.Series->setDropIndicatorShown(true);
+  ui.Series->setDragDropOverwriteMode(false);
+  ui.Series->setDragDropMode(QAbstractItemView::InternalMove);
 
   vtkSMProxy *proxy = representation->getProxy();
 
@@ -128,5 +133,7 @@ void pqPlotMatrixDisplayPanel::headerCheckStateChanged()
 
 void pqPlotMatrixDisplayPanel::dataChanged(QModelIndex topLeft, QModelIndex bottomRight)
 {
+  Q_UNUSED(topLeft);
+  Q_UNUSED(bottomRight);
   this->Representation->renderViewEventually();
 }

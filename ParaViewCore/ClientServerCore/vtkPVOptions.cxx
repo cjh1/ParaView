@@ -19,6 +19,7 @@
 #include "vtkProcessModule.h"
 
 #include <vtksys/CommandLineArguments.hxx>
+#include <vtksys/SystemInformation.hxx>
 #include <vtksys/SystemTools.hxx>
 
 
@@ -52,20 +53,27 @@ vtkPVOptions::vtkPVOptions()
   this->ClientMode = 0;
   this->ServerMode = 0;
   this->MultiClientMode = 0;
+  this->MultiServerMode = 0;
+
   this->RenderServerMode = 0;
   this->SymmetricMPIMode = 0;
 
   this->TellVersion = 0;
 
   // initialize host names
+  vtksys::SystemInformation sys_info;
+  sys_info.RunOSCheck();
+  const char* sys_hostname = sys_info.GetHostname()?
+    sys_info.GetHostname() : "localhost";
+
   this->ServerHostName = 0;
-  this->SetServerHostName("localhost");
+  this->SetServerHostName(sys_hostname);
   this->DataServerHostName = 0;
-  this->SetDataServerHostName("localhost");
+  this->SetDataServerHostName(sys_hostname);
   this->RenderServerHostName = 0;
-  this->SetRenderServerHostName("localhost");
+  this->SetRenderServerHostName(sys_hostname);
   this->ClientHostName = 0;
-  this->SetClientHostName("localhost");
+  this->SetClientHostName(sys_hostname);
   // initialize ports to defaults
   this->ServerPort = 11111;
   this->DataServerPort = 11111;
@@ -149,6 +157,10 @@ void vtkPVOptions::Initialize()
                            "Allow server to keep listening for serveral client to"
                            "connect to it and share the same visualization session.",
                            vtkPVOptions::PVDATA_SERVER|vtkPVOptions::PVSERVER);
+
+  this->AddBooleanArgument("--multi-servers", 0, &this->MultiServerMode,
+                           "Allow client to connect to several pvserver",
+                           vtkPVOptions::PVCLIENT);
 
   this->AddArgument("--data", 0, &this->ParaViewDataName,
                     "Load the specified data. "
@@ -416,6 +428,10 @@ void vtkPVOptions::PrintSelf(ostream& os, vtkIndent indent)
   if (this->MultiClientMode)
     {
     os << indent << "Allow several client to connect to that server.\n";
+    }
+  if (this->MultiServerMode)
+    {
+    os << indent << "Allow a client to connect to multiple servers at the same time.\n";
     }
 
   if (this->RenderServerMode)

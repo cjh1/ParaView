@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkSMPropertyHelper.h"
 #include "vtkSMProxyIterator.h"
 #include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMProxyProperty.h"
 #include "vtkSMSourceProxy.h"
 
@@ -50,7 +51,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqSelectionManager.h"
 #include "pqSMAdaptor.h"
 
-#include <vtkstd/string>
+#include <string>
 
 #include "ui_pqSelectionInputWidget.h"
 class pqSelectionInputWidget::UI : public Ui::pqSelectionInputWidget { };
@@ -277,7 +278,7 @@ void pqSelectionInputWidget::copyActiveSelection()
     return;
     }
 
-  vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
+  vtkSMSessionProxyManager* pxm = activeSelection->GetSessionProxyManager();
   vtkSMProxy* newSource = pxm->NewProxy(activeSelection->GetXMLGroup(),
                                         activeSelection->GetXMLName());
   newSource->Copy(activeSelection, 0,
@@ -309,17 +310,26 @@ void pqSelectionInputWidget::onActiveSelectionChanged()
 //-----------------------------------------------------------------------------
 void pqSelectionInputWidget::postAccept()
 {
-  vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
+  // Select proper ProxyManager
+  vtkSMProxy* sel_source = this->selection();
+  vtkSMSessionProxyManager* pxm = sel_source ?
+                                  sel_source->GetSessionProxyManager() : NULL;
+
+  if (!sel_source)
+    {
+    return;
+    }
 
   // Unregister any de-referenced proxy sources.
   vtkSMProxyIterator* iter = vtkSMProxyIterator::New();
+  iter->SetSession(sel_source->GetSession());
   iter->SetModeToOneGroup();
   for (iter->Begin("selection_sources"); !iter->IsAtEnd();)
     {
     vtkSMProxy* proxy = iter->GetProxy();
     if (proxy->GetNumberOfConsumers() == 0)
       {
-      vtkstd::string key = iter->GetKey();
+      std::string key = iter->GetKey();
       iter->Next();
       pxm->UnRegisterProxy("selection_sources", key.c_str(), proxy);
       }
@@ -334,15 +344,17 @@ void pqSelectionInputWidget::postAccept()
 //-----------------------------------------------------------------------------
 void pqSelectionInputWidget::preAccept()
 {
-  vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
+  // Select proper ProxyManager
+  vtkSMProxy* sel_source = this->selection();
+  vtkSMSessionProxyManager* pxm = sel_source ?
+                                  sel_source->GetSessionProxyManager() : NULL;
 
   // Register the new selection proxy.
-  vtkSMProxy* sel_source = this->selection();
   if (sel_source && pxm)
     {
     if (!pxm->GetProxyName("selection_sources", sel_source))
       {
-      vtkstd::string key = vtkstd::string("selection_source.") +
+      std::string key = std::string("selection_source.") +
         sel_source->GetGlobalIDAsString();
       pxm->RegisterProxy("selection_sources", key.c_str(), sel_source);
       }
