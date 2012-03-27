@@ -77,12 +77,11 @@ namespace
       {
       result->ShallowCopy(pieces[0]);
       vtkImageData* id = vtkImageData::SafeDownCast(pieces[0]);
-//       if (id)
-//         {
-//           FIXME: Check whether to pass-in pipeline info?
-//         result->SetWholeExtent(
-//           static_cast<vtkImageData*>(pieces[0].GetPointer())->GetExtent());
-//         }
+      if (id)
+        {
+        vtkStreamingDemandDrivenPipeline::SetWholeExtent(result->GetInformation(),
+          static_cast<vtkImageData*>(pieces[0].GetPointer())->GetExtent());
+        }
       return true;
       }
 
@@ -139,21 +138,22 @@ namespace
       result->ShallowCopy(pieces[0]);
       return false;
       }
+    std::vector< vtkSmartPointer<vtkTrivialProducer> > pieceProducers(pieces.size());
+    std::vector< vtkSmartPointer<vtkTrivialProducer> >::iterator producerIter;
     std::vector<vtkSmartPointer<vtkDataObject> >::iterator iter;
-    for (iter = pieces.begin();
-         iter != pieces.end();
-         ++iter)
+    for (iter = pieces.begin(), producerIter = pieceProducers.begin();
+         iter != pieces.end(), producerIter != pieceProducers.end();
+        ++iter, ++producerIter)
       {
       vtkDataSet* ds = vtkDataSet::SafeDownCast(iter->GetPointer());
-
+      
       if (ds && ds->GetNumberOfPoints() == 0)
         {
         // skip empty pieces.
         continue;
         }
-      vtkNew<vtkTrivialProducer> tp;
-      tp->SetOutput(iter->GetPointer());
-      appender->AddInputConnection(0, tp->GetOutputPort());
+      producerIter->GetPointer()->SetOutput(iter->GetPointer());
+      appender->AddInputConnection(0, producerIter->GetPointer()->GetOutputPort());
       }
     appender->Update();
     result->ShallowCopy(appender->GetOutputDataObject(0));
