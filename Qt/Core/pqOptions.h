@@ -49,6 +49,7 @@ public:
   vtkTypeMacro(pqOptions, vtkPVOptions);
   void PrintSelf(ostream &os, vtkIndent indent);
 
+  vtkGetStringMacro(TileImagePath);
   vtkGetStringMacro(TestDirectory);
   vtkGetStringMacro(DataDirectory);
 
@@ -62,6 +63,10 @@ public:
   /// to load.
   vtkGetStringMacro(ServerResourceName);
 
+  /// Provides access to server-url if specified on the command line.
+  vtkGetStringMacro(ServerURL);
+
+  vtkSetStringMacro(TileImagePath);
   vtkSetStringMacro(TestDirectory);
   vtkSetStringMacro(DataDirectory);
 
@@ -112,6 +117,9 @@ protected:
   char* TestDirectory;
   char* DataDirectory;
   char* ServerResourceName;
+  char* ServerURL;
+  char* TileImagePath;
+
   int ExitAppWhenTestsDone;
   int DisableRegistry;
   int DisableLightKit;
