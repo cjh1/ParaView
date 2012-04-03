@@ -249,6 +249,9 @@ vtkProcessModule::vtkProcessModule()
   this->SymmetricMPIMode = false;
   this->MultipleSessionsSupport = false; // Set MULTI-SERVER to false as DEFAULT
 
+  // Default requests native render windows in vtkPVSynchronizedRenderWindows
+  this->RenderWindowType = vtkProcessModule::CLIENT_NATIVE_RENDER_WINDOW; 
+
   vtkCompositeDataPipeline* cddp = vtkCompositeDataPipeline::New();
   vtkAlgorithm::SetDefaultExecutivePrototype(cddp);
   cddp->Delete();

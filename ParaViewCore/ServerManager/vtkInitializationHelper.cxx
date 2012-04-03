@@ -182,6 +182,12 @@ void vtkInitializationHelper::Finalize()
   google::protobuf::ShutdownProtobufLibrary();
 }
 
+//----------------------------------------------------------------------------
+vtkProcessModule* vtkInitializationHelper::GetProcessModule()
+{
+  return vtkProcessModule::GetProcessModule();
+}
+
 //-----------------------------------------------------------------------------
 /*
  * PARAVIEW_MINIMIUM if enabled, initializes only required set of classes.

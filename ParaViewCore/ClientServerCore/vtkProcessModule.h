@@ -67,6 +67,24 @@ public:
   static ProcessTypes GetProcessType();
 
   // Description:
+  // These types are used to control the kind of render windows created by
+  // clients in vtkPVSynchronizedRenderWindows. The default is CLIENT_NATIVE_RENDER_WINDOW,
+  // which creates render windows specific to the client host platform in vtkPVSynchronizedRenderWindows.  
+  // The type CLIENT_GENERIC_RENDER_WINDOW will request that vtkGenericOpenGLRenderWindow
+  // be created by vtkPVSynchronizedRenderWindows.
+  enum ClientRenderWindowTypes 
+    {
+    CLIENT_NATIVE_RENDER_WINDOW = 0,
+    CLIENT_GENERIC_RENDER_WINDOW = 1
+    };
+
+  // Description:
+  // Change the type of render window created by vtkPVSynchronizedRenderWindows. The default
+  // is CLIENT_NATIVE_RENDER_WINDOW.  
+  vtkGetMacro(RenderWindowType, int);
+  vtkSetMacro(RenderWindowType, int);
+
+  // Description:
   // This method has been added to support migration from one type to another
   // but this method call if NOT RECOMMENDED.
   // -> We use it to handle the Animation saving at disconnection time on the
@@ -244,6 +262,8 @@ private:
   bool SymmetricMPIMode;
 
   bool MultipleSessionsSupport;
+
+  int RenderWindowType;
 //ETX
 };
 
