@@ -179,7 +179,6 @@ SET_SOURCE_FILES_PROPERTIES(
   vtkSMPropertyHelper.cxx
   vtkSMProxyManager.cxx # since New() is protected.
   vtkSMRemoteObject.cxx
-  vtkSMSession.cxx
   vtkSMSessionProxyManager.cxx # since New() is non-standard.
   vtkSMStateVersionControllerBase.cxx
   vtkSMUndoElement.cxx
@@ -282,6 +281,18 @@ IF (PARAVIEW_ENABLE_PYTHON)
   # include python wrapping from VTK
   INCLUDE(KitCommonPythonWrapBlock)
 ENDIF (PARAVIEW_ENABLE_PYTHON)
+
+IF (PARAVIEW_ENABLE_JAVA)
+  SET(Kit_JAVA_EXTRA_SRCS)
+  SET(KIT_JAVA_LIBS
+    vtkPVServerImplementationJava
+    )
+  INCLUDE("${VTK_CMAKE_DIR}/vtkWrapJava.cmake")
+  SET(VTK_INSTALL_LIB_DIR_CM24 "${VTKJavaWrapping_INSTALL_LIB_DIR}")
+  SET(VTK_INSTALL_BIN_DIR_CM24 "${VTKJavaWrapping_INSTALL_BIN_DIR}")
+  SET(KIT_JAVA_DEPS)
+  INCLUDE(KitCommonJavaWrapBlock)
+ENDIF (PARAVIEW_ENABLE_JAVA)
 
 # Custom command for generating the minimal initializer, requires python interpreter
 IF(PARAVIEW_MINIMAL_BUILD)

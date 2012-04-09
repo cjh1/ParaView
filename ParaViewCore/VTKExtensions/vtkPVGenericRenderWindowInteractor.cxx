@@ -28,25 +28,13 @@
 #include "QVTKInteractor.h"
 #endif
 
-// this class wraps QVTKInteractor to provide an easy API to support
-// delayed-switch-out-of-ineractive-render mode. Look at BUG #10232 for details.
-class vtkPVGenericRenderWindowInteractorTimer : public
-#ifdef VTK_USE_QVTK
-                                                     QVTKInteractor
-#else
-                                                     vtkRenderWindowInteractor
-#endif
+class vtkPVGenericRenderWindowInteractorTimerWithoutQT: public vtkRenderWindowInteractor
 {
   vtkPVGenericRenderWindowInteractor* Target;
 
 public:
-  static vtkPVGenericRenderWindowInteractorTimer* New();
-#ifdef VTK_USE_QVTK
-  vtkTypeMacro(vtkPVGenericRenderWindowInteractorTimer, QVTKInteractor);
-#else
-  vtkTypeMacro(vtkPVGenericRenderWindowInteractorTimer,
-    vtkRenderWindowInteractor);
-#endif
+  static vtkPVGenericRenderWindowInteractorTimerWithoutQT* New();
+  vtkTypeMacro(vtkPVGenericRenderWindowInteractorTimerWithoutQT, vtkRenderWindowInteractor);
 
   void Timeout(unsigned long timeout)
     {
@@ -75,11 +63,61 @@ public:
     this->TimerId = 0;
     }
 
-
   void SetTarget(vtkPVGenericRenderWindowInteractor* target)
     { this->Target = target; }
+protected:
+  vtkPVGenericRenderWindowInteractorTimerWithoutQT()
+    {
+    this->Target = 0;
+    this->TimerId = 0;
+    }
+  ~vtkPVGenericRenderWindowInteractorTimerWithoutQT()
+    {
+    this->CleanTimer();
+    }
+
+  int TimerId;
+};
+vtkStandardNewMacro(vtkPVGenericRenderWindowInteractorTimerWithoutQT);
 
 #ifdef VTK_USE_QVTK
+// this class wraps QVTKInteractor to provide an easy API to support
+// delayed-switch-out-of-ineractive-render mode. Look at BUG #10232 for details.
+class vtkPVGenericRenderWindowInteractorTimerWithQT: public QVTKInteractor
+{
+  vtkPVGenericRenderWindowInteractor* Target;
+
+public:
+  static vtkPVGenericRenderWindowInteractorTimerWithQT* New();
+  vtkTypeMacro(vtkPVGenericRenderWindowInteractorTimerWithQT, QVTKInteractor);
+
+  void Timeout(unsigned long timeout)
+    {
+    this->CleanTimer();
+    if (timeout > 0)
+      {
+      this->Target->InvokeEvent(
+        vtkPVGenericRenderWindowInteractor::BeginDelayNonInteractiveRenderEvent);
+      this->TimerId = this->CreateOneShotTimer(timeout);
+      }
+    if (this->TimerId == 0)
+      {
+      this->Target->SetForceInteractiveRender(false);
+      this->Target->InvokeEvent(
+        vtkPVGenericRenderWindowInteractor::EndDelayNonInteractiveRenderEvent);
+      this->Target->Render();
+      }
+    }
+
+  void CleanTimer()
+    {
+    if (this->TimerId > 0)
+      {
+      this->DestroyTimer(this->TimerId);
+      }
+    this->TimerId = 0;
+    }
+
   virtual void TimerEvent(int timerId)
     {
     if(timerId == this->TimerId && this->Target)
@@ -96,22 +134,25 @@ public:
     this->Superclass::TimerEvent(timerId);
     this->CleanTimer();
     }
-#endif
+
+
+  void SetTarget(vtkPVGenericRenderWindowInteractor* target)
+    { this->Target = target; }
 protected:
-  vtkPVGenericRenderWindowInteractorTimer()
+  vtkPVGenericRenderWindowInteractorTimerWithQT()
     {
     this->Target = 0;
     this->TimerId = 0;
     }
-  ~vtkPVGenericRenderWindowInteractorTimer()
+  ~vtkPVGenericRenderWindowInteractorTimerWithQT()
     {
     this->CleanTimer();
     }
 
   int TimerId;
 };
-
-vtkStandardNewMacro(vtkPVGenericRenderWindowInteractorTimer);
+vtkStandardNewMacro(vtkPVGenericRenderWindowInteractorTimerWithQT);
+#endif
 
 //-----------------------------------------------------------------------------
 class vtkPVGenericRenderWindowInteractorObserver : public vtkCommand
@@ -158,6 +199,98 @@ protected:
   vtkPVGenericRenderWindowInteractor* Target;
 };
 
+// This helper class was created to allow QT based timers
+// and non QT based timers to be switched out at run time,
+// rather than determined and compile time.
+class vtkPVGenericRenderWindowTimerPIMPL {
+public:
+  vtkPVGenericRenderWindowTimerPIMPL(vtkPVGenericRenderWindowInteractor* gwi)
+    {
+    this->Observer = vtkPVGenericRenderWindowInteractorObserver::New();
+    this->Observer->SetTarget(gwi);
+    this->TimerWithQT = 0;
+    this->TimerWithoutQT = 0;
+    this->CreateTimers(true, gwi);
+    }
+
+  ~vtkPVGenericRenderWindowTimerPIMPL()
+    {
+    this->Observer->SetTarget(0);
+    this->Observer->Delete();
+    this->DeleteTimers();
+    }
+ 
+  void DeleteTimers()
+    {
+    if(this->TimerWithQT)
+      {
+#ifdef VTK_USE_QVTK
+      this->TimerWithQT->SetTarget(0);
+      this->TimerWithQT->Delete();
+      this->TimerWithQT = 0;
+#endif
+      }
+    if(this->TimerWithoutQT)
+      {
+      this->TimerWithoutQT->SetTarget(0);
+      this->TimerWithoutQT->Delete();
+      this->TimerWithoutQT = 0;
+      }
+    }
+
+  void CreateTimers(bool UseQT, vtkPVGenericRenderWindowInteractor* gwi)
+    {
+    this->DeleteTimers();
+    if(UseQT)
+      {
+#ifdef VTK_USE_QVTK
+      this->TimerWithQT = vtkPVGenericRenderWindowInteractorTimerWithQT::New();
+      this->TimerWithQT->SetTarget(gwi);
+      return;
+#endif
+      }
+    this->TimerWithoutQT = vtkPVGenericRenderWindowInteractorTimerWithoutQT::New();
+    this->TimerWithoutQT->SetTarget(gwi);
+    }
+
+  void CleanTimer()
+    {
+    if(this->TimerWithQT)
+      {
+#ifdef VTK_USE_QVTK
+      this->TimerWithQT->CleanTimer();
+      return;
+#endif
+      }
+    if(this->TimerWithoutQT)
+      {
+      this->TimerWithoutQT->CleanTimer();
+      return;
+      }
+    }
+
+  void Timeout(unsigned long timeout)
+    {
+    if(this->TimerWithQT)
+      {
+#ifdef VTK_USE_QVTK
+      this->TimerWithQT->Timeout(timeout);
+      return;
+#endif
+      }
+    if(this->TimerWithoutQT)
+      {
+      this->TimerWithoutQT->Timeout(timeout);
+      return;
+      }
+    }
+
+  vtkPVGenericRenderWindowInteractorObserver* Observer;
+private:
+  vtkPVGenericRenderWindowInteractorTimerWithQT* TimerWithQT;
+  vtkPVGenericRenderWindowInteractorTimerWithoutQT* TimerWithoutQT;
+};
+
 //----------------------------------------------------------------------------
 vtkStandardNewMacro(vtkPVGenericRenderWindowInteractor);
 vtkCxxSetObjectMacro(vtkPVGenericRenderWindowInteractor,Renderer,vtkRenderer);
@@ -168,15 +301,13 @@ vtkPVGenericRenderWindowInteractor::vtkPVGenericRenderWindowInteractor()
   this->PVRenderView = NULL;
   this->Renderer = NULL;
   this->InteractiveRenderEnabled = 0;
-  this->Observer = vtkPVGenericRenderWindowInteractorObserver::New();
-  this->Observer->SetTarget(this);
+  this->ForceInteractiveRender = false;
+  this->EnableDelayedSwitchToNonInteractiveRendering = 1;
+  this->Tpimpl = new vtkPVGenericRenderWindowTimerPIMPL(this);
 
   this->CenterOfRotation[0] = this->CenterOfRotation[1]
     = this->CenterOfRotation[2] = 0;
 
-  this->Timer = vtkPVGenericRenderWindowInteractorTimer::New();
-  this->Timer->SetTarget(this);
-  this->ForceInteractiveRender = false;
   this->NonInteractiveRenderDelay = 2000;
   this->InteractiveRenderHappened = false;
 }
@@ -184,15 +315,20 @@ vtkPVGenericRenderWindowInteractor::vtkPVGenericRenderWindowInteractor()
 //----------------------------------------------------------------------------
 vtkPVGenericRenderWindowInteractor::~vtkPVGenericRenderWindowInteractor()
 {
-  this->Observer->SetTarget(0);
-  this->Observer->Delete();
-
-  this->Timer->CleanTimer();
-  this->Timer->SetTarget(0);
-  this->Timer->Delete();
+  delete this->Tpimpl;
 
   this->SetPVRenderView(NULL);
   this->SetRenderer(NULL);
+}
+
+//----------------------------------------------------------------------------
+void vtkPVGenericRenderWindowInteractor::SetEnableDelayedSwitchToNonInteractiveRendering(int enabled)
+{
+  this->EnableDelayedSwitchToNonInteractiveRendering = enabled;
+  if(!this->EnableDelayedSwitchToNonInteractiveRendering)
+    {
+    this->Tpimpl->CreateTimers(false, this);
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -223,7 +359,7 @@ void vtkPVGenericRenderWindowInteractor::SetInteractorStyle(
 {
   if (this->GetInteractorStyle())
     {
-    this->GetInteractorStyle()->RemoveObserver(this->Observer);
+    this->GetInteractorStyle()->RemoveObserver(this->Tpimpl->Observer);
     }
 
   this->Superclass::SetInteractorStyle(style);
@@ -238,9 +374,9 @@ void vtkPVGenericRenderWindowInteractor::SetInteractorStyle(
   if (this->GetInteractorStyle())
     {
     this->GetInteractorStyle()->AddObserver(
-      vtkCommand::StartInteractionEvent, this->Observer);
+      vtkCommand::StartInteractionEvent, this->Tpimpl->Observer);
     this->GetInteractorStyle()->AddObserver(
-      vtkCommand::EndInteractionEvent, this->Observer);
+      vtkCommand::EndInteractionEvent, this->Tpimpl->Observer);
     }
 }
 
@@ -314,11 +450,11 @@ void vtkPVGenericRenderWindowInteractor::SetInteractiveRenderEnabled(int val)
   // when switch to non-interactive mode, we set ForceInteractiveRender to ON.
   // Then it is cleared on timeout by vtkPVGenericRenderWindowInteractorTimer.
   this->SetForceInteractiveRender(val == 0);
-  this->Timer->CleanTimer();
+  this->Tpimpl->CleanTimer();
   if (val == 0)
     {
     // switch to non-interactive render.
-    this->Timer->Timeout(
+    this->Tpimpl->Timeout(
       this->PVRenderView->LastRenderWasInteractive()?
       this->NonInteractiveRenderDelay : 0);
     }

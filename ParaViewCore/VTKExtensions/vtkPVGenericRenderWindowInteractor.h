@@ -22,8 +22,9 @@
 
 class vtkPVRenderViewProxy;
 class vtkRenderer;
-class vtkPVGenericRenderWindowInteractorObserver;
-class vtkPVGenericRenderWindowInteractorTimer;
+class vtkPVGenericRenderWindowTimerPIMPL;
+class vtkPVGenericRenderWindowInteractorTimerWithQT;
+class vtkPVGenericRenderWindowInteractorTimerWithoutQT;
 
 class VTK_EXPORT vtkPVGenericRenderWindowInteractor : public vtkRenderWindowInteractor
 {
@@ -66,6 +67,14 @@ public:
   // VTK_USE_QVTK set to ON.
   vtkSetMacro(NonInteractiveRenderDelay, unsigned long);
   vtkGetMacro(NonInteractiveRenderDelay, unsigned long);
+
+  // Description
+  // Controls if delayed switch to non-interactive rendering is enabled.
+  // If disabled, will switch to a timer that does not use QT, assuming
+  // ParaView has been compiled with VTK_USE_QVTK. Default is enabled, and
+  // will use a QT timer if VTK_USE_QVTK is ON.
+  void SetEnableDelayedSwitchToNonInteractiveRendering(int enabled);
+  vtkGetMacro(EnableDelayedSwitchToNonInteractiveRendering, int);
 
   // Description:
   // Triggers a render.
@@ -121,16 +130,17 @@ protected:
 private:
   vtkPVGenericRenderWindowInteractor(const vtkPVGenericRenderWindowInteractor&); // Not implemented
   void operator=(const vtkPVGenericRenderWindowInteractor&); // Not implemented
-
-  friend class vtkPVGenericRenderWindowInteractorTimer;
-  friend class vtkPVGenericRenderWindowInteractorObserver;
-
-  vtkPVGenericRenderWindowInteractorTimer* Timer;
-  vtkPVGenericRenderWindowInteractorObserver* Observer;
-
   bool ForceInteractiveRender;
   vtkSetMacro(ForceInteractiveRender, bool);
+
+  friend class vtkPVGenericRenderWindowInteractorTimerWithQT;
+  friend class vtkPVGenericRenderWindowInteractorTimerWithoutQT;
+  friend class vtkPVGenericRenderWindowInteractorObserver;
+
+  vtkPVGenericRenderWindowTimerPIMPL* Tpimpl;
+ 
   void DisableInteractiveRenderInternal();
+  int EnableDelayedSwitchToNonInteractiveRendering;
   bool InteractiveRenderHappened;
 };
 

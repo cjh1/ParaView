@@ -360,6 +360,23 @@ IF (PARAVIEW_ENABLE_PYTHON)
   INCLUDE(KitCommonPythonWrapBlock)
 ENDIF (PARAVIEW_ENABLE_PYTHON)
 
+# Wrap for java
+IF (PARAVIEW_ENABLE_JAVA)
+  SET(Kit_JAVA_EXTRA_SRCS)
+  SET(KIT_JAVA_LIBS
+    vtkPVCommonJava
+    vtkHybridJava
+    vtkWidgetsJava
+    vtkParallelJava
+    )
+  INCLUDE("${VTK_CMAKE_DIR}/vtkWrapJava.cmake")
+  SET(VTK_INSTALL_LIB_DIR      "${VTKJavaWrapping_INSTALL_LIB_DIR}")
+  SET(VTK_INSTALL_BIN_DIR      "${VTKJavaWrapping_INSTALL_BIN_DIR}")
+  SET(VTK_INSTALL_LIB_DIR_CM24 "${VTKJavaWrapping_INSTALL_LIB_DIR}")
+  SET(VTK_INSTALL_BIN_DIR_CM24 "${VTKJavaWrapping_INSTALL_BIN_DIR}")
+  SET(KIT_JAVA_DEPS)
+  INCLUDE(KitCommonJavaWrapBlock)
+ENDIF (PARAVIEW_ENABLE_JAVA)
 
 IF(VTK_USE_RENDERING)
   # Create custom commands to encode each assembly file into a C string
