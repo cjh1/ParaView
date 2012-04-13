@@ -38,7 +38,14 @@ ENDIF(PARAVIEW_ENABLE_PYTHON)
 paraview_build_optional_plugin(SierraPlotTools "SierraPlotTools" SierraPlotTools ON)
 paraview_build_optional_plugin(SLACTools "SLACTools" SLACTools ON)
 paraview_build_optional_plugin(StreamingView "Streaming View" StreamingView ON)
-paraview_build_optional_plugin( SurfaceLIC "SurfaceLIC" SurfaceLIC ON )
+
+# The surface LIC plugin does not build in static mode therefore we make sure it is disable
+if(BUILD_SHARED_LIBS)
+  paraview_build_optional_plugin( SurfaceLIC "SurfaceLIC" SurfaceLIC ON )
+else(BUILD_SHARED_LIBS)
+  set(PARAVIEW_BUILD_PLUGIN_SurfaceLIC OFF CACHE BOOL "Must be disable in static build" FORCE)
+endif(BUILD_SHARED_LIBS)
+
 paraview_build_optional_plugin(VaporPlugin "Plugin to read NCAR VDF files" Vapor OFF)
 paraview_build_optional_plugin(H5PartReader "Reader for *.h5part files" H5PartReader ON)
 paraview_build_optional_plugin(AdiosReader "Reader for *.bp files based on Adios" AdiosReader OFF)
