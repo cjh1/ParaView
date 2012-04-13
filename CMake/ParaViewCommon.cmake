@@ -493,38 +493,6 @@ IF(PARAVIEW_ENABLE_PYTHON)
 ENDIF(PARAVIEW_ENABLE_PYTHON)
 
 #########################################################################
-# Configure Java wrapping
-IF(PARAVIEW_ENABLE_JAVA)
-  FIND_PACKAGE(Java)
-  FIND_PACKAGE(JNI)
-
-  INCLUDE_DIRECTORIES(
-    ${JAVA_INCLUDE_PATH}
-    ${JAVA_INCLUDE_PATH2}
-   )
-
-  SET(VTK_WRAP_JAVA3_INIT_DIR ${VTK_SOURCE_DIR}/Wrapping)
-  SET(VTK_JAVA_JAR ${ParaView_BINARY_DIR}/bin/vtk.jar)
-  SET(VTK_JAVA_HOME ${ParaView_BINARY_DIR}/VTK/java/vtk)
-  SET(VTK_WRAP_JAVA_EXE  vtkWrapJava)
-  SET(VTK_PARSE_JAVA_EXE vtkParseJava)
-  MAKE_DIRECTORY(${VTK_JAVA_HOME})
-
-  INCLUDE("${VTK_CMAKE_DIR}/vtkWrapJava.cmake")
-
-  IF(PV_INSTALL_NO_LIBRARIES)
-    SET(VTKJavaWrapping_INSTALL_LIBRARIES 0)
-  ELSE(PV_INSTALL_NO_LIBRARIES)
-    SET(VTKJavaWrapping_INSTALL_LIBRARIES 1)
-  ENDIF(PV_INSTALL_NO_LIBRARIES)
-
-  SET(VTKJavaWrapping_INSTALL_LIB_DIR ${PV_INSTALL_LIB_DIR})
-  SET(VTKJavaWrapping_INSTALL_BIN_DIR ${PV_INSTALL_BIN_DIR})
-
-ENDIF(PARAVIEW_ENABLE_JAVA)
-
-
-#########################################################################
 # Configure mpi4py
 IF(PARAVIEW_ENABLE_PYTHON AND PARAVIEW_USE_MPI)
   ADD_SUBDIRECTORY(Utilities/mpi4py)
@@ -830,10 +798,6 @@ ENDIF(PARAVIEW_USE_VISITBRIDGE)
 
 ADD_SUBDIRECTORY(ParaViewCore)
 
-IF(PARAVIEW_ENABLE_JAVA)
-  ADD_SUBDIRECTORY(${ParaView_SOURCE_DIR}/Utilities/VTKJavaWrapping)
-ENDIF(PARAVIEW_ENABLE_JAVA)
-
 #########################################################################
 # Configure Python executable
 IF(PARAVIEW_ENABLE_PYTHON)
@@ -875,13 +839,6 @@ SET(PARAVIEW_INCLUDE_DIRS
   ${ParaView_SOURCE_DIR}/VTK/Wrapping
   ${XDMF_INCLUDE_DIRS}
   )
-
-OPTION(BUILD_JNI_WRAPPER "Build the ParaView JNI wrapper (requires SWIG)" OFF)
-MARK_AS_ADVANCED(BUILD_JNI_WRAPPER)
-IF(BUILD_JNI_WRAPPER)
-  ADD_SUBDIRECTORY(${ParaView_SOURCE_DIR}/Utilities/VTKJavaWrapping/jni/)
-  SET(PARAVIEW_JNI_PACKAGE_NAME "paraview.servermanager.jni" CACHE PATH "Name of the ParaView JNI package.")
-ENDIF(BUILD_JNI_WRAPPER)
 
 IF(PARAVIEW_USE_VISITBRIDGE)
   SET(PARAVIEW_INCLUDE_DIRS ${PARAVIEW_INCLUDE_DIRS}

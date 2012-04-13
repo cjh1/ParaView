@@ -29,7 +29,6 @@
 #include "vtkSmartPointer.h"
 #include "vtkSocketController.h"
 #include "vtkTilesHelper.h"
-#include "vtkGenericOpenGLRenderWindow.h"
 
 #include <vtksys/SystemTools.hxx>
 #include <vtksys/ios/sstream>
@@ -527,17 +526,12 @@ void vtkPVSynchronizedRenderWindows::SetParallelController(
 //----------------------------------------------------------------------------
 vtkRenderWindow* vtkPVSynchronizedRenderWindows::NewRenderWindow()
 {
-  vtkProcessModule* pm = vtkProcessModule::GetProcessModule();
   switch (this->Mode)
     {
   case DATA_SERVER:
       {
       // we could very return a dummy window here.
-      vtkRenderWindow* window = NULL;
-      if(pm->GetRenderWindowType() == vtkProcessModule::CLIENT_GENERIC_RENDER_WINDOW)
-        window = vtkGenericOpenGLRenderWindow::New();
-      else
-        window = vtkRenderWindow::New();
+      vtkRenderWindow* window = vtkRenderWindow::New();
       window->SetWindowName("ParaView Data-Server");
       return window;
       }
@@ -547,11 +541,7 @@ vtkRenderWindow* vtkPVSynchronizedRenderWindows::NewRenderWindow()
       {
       // client always creates new window for each view in the multi layout
       // configuration.
-      vtkRenderWindow* window = NULL;
-      if(pm->GetRenderWindowType() == vtkProcessModule::CLIENT_GENERIC_RENDER_WINDOW)
-        window = vtkGenericOpenGLRenderWindow::New();
-      else
-        window = vtkRenderWindow::New();
+      vtkRenderWindow* window = vtkRenderWindow::New();
       window->DoubleBufferOn();
       window->AlphaBitPlanesOn();
       window->SetWindowName("ParaView");
@@ -563,11 +553,7 @@ vtkRenderWindow* vtkPVSynchronizedRenderWindows::NewRenderWindow()
     // all views share the same render window.
     if (!this->Internals->SharedRenderWindow)
       {
-      vtkRenderWindow* window = NULL;
-      if(pm->GetRenderWindowType() == vtkProcessModule::CLIENT_GENERIC_RENDER_WINDOW)
-        window = vtkGenericOpenGLRenderWindow::New();
-      else
-        window = vtkRenderWindow::New();
+      vtkRenderWindow* window = vtkRenderWindow::New();
       window->DoubleBufferOn();
       window->AlphaBitPlanesOn();
       vtksys_ios::ostringstream name_stream;

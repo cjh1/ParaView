@@ -25,7 +25,6 @@
 #include "vtkObject.h"
 
 class vtkPVOptions;
-class vtkProcessModule;
 
 class VTK_EXPORT vtkInitializationHelper : public vtkObject
 {
@@ -48,10 +47,6 @@ public:
   // Finalizes the server manager. Do not use the server manager
   // after calling this.
   static void Finalize();
-
-  // Description:
-  // Get the vtkProcessModule singleton
-  static vtkProcessModule* GetProcessModule();
 
 protected:
   vtkInitializationHelper() {};
