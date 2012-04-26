@@ -1,9 +1,9 @@
 /*=========================================================================
 
    Program: ParaView
-   Module:    pqDisplayRepresentationWidget.h
+   Module: pqCubeAxesPropertyWidget.h
 
-   Copyright (c) 2005-2008 Sandia Corporation, Kitware Inc.
+   Copyright (c) 2005-2012 Kitware Inc.
    All rights reserved.
 
    ParaView is a free software; you can redistribute it and/or modify it
@@ -29,56 +29,24 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 =========================================================================*/
-#ifndef __pqDisplayRepresentationWidget_h
-#define __pqDisplayRepresentationWidget_h
+
+#ifndef _pqCubeAxesPropertyWidget_h
+#define _pqCubeAxesPropertyWidget_h
 
 #include "pqComponentsExport.h"
-#include <QWidget>
+
+#include "pqPropertyLinks.h"
 #include "pqPropertyWidget.h"
 
-class pqDisplayRepresentationWidgetInternal;
-class pqDataRepresentation;
-
-/// A widget for representation of a display proxy.
-class PQCOMPONENTS_EXPORT pqDisplayRepresentationWidget : public QWidget
+class pqCubeAxesPropertyWidget : public pqPropertyWidget
 {
   Q_OBJECT
 
 public:
-  pqDisplayRepresentationWidget(QWidget* parent=0);
-  virtual ~pqDisplayRepresentationWidget();
-
-signals:
-  void currentTextChanged(const QString&);
-
-public slots:
-  void setRepresentation(pqDataRepresentation* display);
-  
-  void reloadGUI();
+  pqCubeAxesPropertyWidget(vtkSMProxy *proxy, QWidget *parent = 0);
 
 private slots:
-  void onCurrentTextChanged(const QString&);
-
-  /// Called when the qt widget changes, we mark undo set
-  /// and push the widget changes to the property.
-  void onQtWidgetChanged();
-
-  void updateLinks();
-private:
-  pqDisplayRepresentationWidgetInternal* Internal;
-};
-
-class PQCOMPONENTS_EXPORT pqDisplayRepresentationPropertyWidget : public pqPropertyWidget
-{
-  Q_OBJECT
-
-public:
-  pqDisplayRepresentationPropertyWidget(vtkSMProxy *proxy, QWidget *parent = 0);
-  ~pqDisplayRepresentationPropertyWidget();
-
-private:
-  pqDisplayRepresentationWidget *Widget;
+  void showEditorDialog();
 };
 
 #endif
-

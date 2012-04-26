@@ -1,9 +1,9 @@
 /*=========================================================================
 
    Program: ParaView
-   Module:    pqDisplayRepresentationWidget.h
+   Module: pqPropertyWidget.h
 
-   Copyright (c) 2005-2008 Sandia Corporation, Kitware Inc.
+   Copyright (c) 2005-2012 Sandia Corporation, Kitware Inc.
    All rights reserved.
 
    ParaView is a free software; you can redistribute it and/or modify it
@@ -29,56 +29,63 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 =========================================================================*/
-#ifndef __pqDisplayRepresentationWidget_h
-#define __pqDisplayRepresentationWidget_h
+
+#ifndef _pqPropertyWidget_h
+#define _pqPropertyWidget_h
 
 #include "pqComponentsExport.h"
+
 #include <QWidget>
-#include "pqPropertyWidget.h"
 
-class pqDisplayRepresentationWidgetInternal;
-class pqDataRepresentation;
+#include "pqPropertyLinks.h"
 
-/// A widget for representation of a display proxy.
-class PQCOMPONENTS_EXPORT pqDisplayRepresentationWidget : public QWidget
+class vtkSMProxy;
+class vtkSMProperty;
+
+class PQCOMPONENTS_EXPORT pqPropertyWidget : public QWidget
 {
   Q_OBJECT
 
 public:
-  pqDisplayRepresentationWidget(QWidget* parent=0);
-  virtual ~pqDisplayRepresentationWidget();
+  pqPropertyWidget(vtkSMProxy *proxy, QWidget *parent = 0);
+  virtual ~pqPropertyWidget();
+
+  virtual void apply();
+  virtual void reset();
+
+  void setProxy(vtkSMProxy *proxy);
+  vtkSMProxy* proxy() const;
+  void setProperty(vtkSMProperty *property);
+  vtkSMProperty* property() const;
+
+  virtual bool showLabel() const;
 
 signals:
-  void currentTextChanged(const QString&);
+  /// This signal is emitted when the widget's value is changed by the user.
+  void modified();
 
-public slots:
-  void setRepresentation(pqDataRepresentation* display);
-  
-  void reloadGUI();
+protected:
+  void addPropertyLink(QObject *qobject,
+                       const char *qproperty,
+                       const char *qsignal,
+                       vtkSMProperty *smproperty,
+                       int smindex = -1);
 
 private slots:
-  void onCurrentTextChanged(const QString&);
-
-  /// Called when the qt widget changes, we mark undo set
-  /// and push the widget changes to the property.
-  void onQtWidgetChanged();
-
-  void updateLinks();
-private:
-  pqDisplayRepresentationWidgetInternal* Internal;
-};
-
-class PQCOMPONENTS_EXPORT pqDisplayRepresentationPropertyWidget : public pqPropertyWidget
-{
-  Q_OBJECT
-
-public:
-  pqDisplayRepresentationPropertyWidget(vtkSMProxy *proxy, QWidget *parent = 0);
-  ~pqDisplayRepresentationPropertyWidget();
+  void setModified(bool modified = true);
 
 private:
-  pqDisplayRepresentationWidget *Widget;
+  bool isModified() const;
+  void setAutoUpdateVTKObjects(bool autoUpdate);
+  void setUseUncheckedProperties(bool useUnchecked);
+
+  friend class pqPropertiesPanel;
+
+private:
+  vtkSMProxy *Proxy;
+  vtkSMProperty *Property;
+  pqPropertyLinks Links;
+  bool Modified;
 };
 
-#endif
-
+#endif // _pqPropertyWidget_h

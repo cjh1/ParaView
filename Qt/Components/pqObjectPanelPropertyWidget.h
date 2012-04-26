@@ -1,7 +1,7 @@
 /*=========================================================================
 
    Program: ParaView
-   Module:    pqDisplayRepresentationWidget.h
+   Module: pqObjectPanelPropertyWidget.h
 
    Copyright (c) 2005-2008 Sandia Corporation, Kitware Inc.
    All rights reserved.
@@ -29,56 +29,31 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 =========================================================================*/
-#ifndef __pqDisplayRepresentationWidget_h
-#define __pqDisplayRepresentationWidget_h
+
+#ifndef _pqObjectPanelPropertyWidget_h
+#define _pqObjectPanelPropertyWidget_h
 
 #include "pqComponentsExport.h"
-#include <QWidget>
+
+#include "pqObjectPanel.h"
 #include "pqPropertyWidget.h"
 
-class pqDisplayRepresentationWidgetInternal;
-class pqDataRepresentation;
-
-/// A widget for representation of a display proxy.
-class PQCOMPONENTS_EXPORT pqDisplayRepresentationWidget : public QWidget
+class pqObjectPanelPropertyWidget : public pqPropertyWidget
 {
   Q_OBJECT
 
 public:
-  pqDisplayRepresentationWidget(QWidget* parent=0);
-  virtual ~pqDisplayRepresentationWidget();
+  pqObjectPanelPropertyWidget(pqObjectPanel *objectPanel,
+                              QWidget *parent = 0);
+  ~pqObjectPanelPropertyWidget();
 
-signals:
-  void currentTextChanged(const QString&);
+  void apply();
+  void reset();
 
-public slots:
-  void setRepresentation(pqDataRepresentation* display);
-  
-  void reloadGUI();
-
-private slots:
-  void onCurrentTextChanged(const QString&);
-
-  /// Called when the qt widget changes, we mark undo set
-  /// and push the widget changes to the property.
-  void onQtWidgetChanged();
-
-  void updateLinks();
-private:
-  pqDisplayRepresentationWidgetInternal* Internal;
-};
-
-class PQCOMPONENTS_EXPORT pqDisplayRepresentationPropertyWidget : public pqPropertyWidget
-{
-  Q_OBJECT
-
-public:
-  pqDisplayRepresentationPropertyWidget(vtkSMProxy *proxy, QWidget *parent = 0);
-  ~pqDisplayRepresentationPropertyWidget();
+  pqObjectPanel* getObjectPanel() const;
 
 private:
-  pqDisplayRepresentationWidget *Widget;
+  pqObjectPanel *ObjectPanel;
 };
 
 #endif
-

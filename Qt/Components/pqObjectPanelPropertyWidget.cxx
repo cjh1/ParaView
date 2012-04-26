@@ -1,7 +1,7 @@
 /*=========================================================================
 
    Program: ParaView
-   Module:    pqDisplayRepresentationWidget.h
+   Module: pqObjectPanelPropertyWidget.cxx
 
    Copyright (c) 2005-2008 Sandia Corporation, Kitware Inc.
    All rights reserved.
@@ -29,56 +29,39 @@ NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
 SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 =========================================================================*/
-#ifndef __pqDisplayRepresentationWidget_h
-#define __pqDisplayRepresentationWidget_h
 
-#include "pqComponentsExport.h"
-#include <QWidget>
-#include "pqPropertyWidget.h"
+#include "pqObjectPanelPropertyWidget.h"
 
-class pqDisplayRepresentationWidgetInternal;
-class pqDataRepresentation;
+#include <QVBoxLayout>
 
-/// A widget for representation of a display proxy.
-class PQCOMPONENTS_EXPORT pqDisplayRepresentationWidget : public QWidget
+pqObjectPanelPropertyWidget::pqObjectPanelPropertyWidget(pqObjectPanel *objectPanel,
+                                                         QWidget *parent)
+  : pqPropertyWidget(objectPanel->proxy(), parent)
 {
-  Q_OBJECT
+  this->ObjectPanel = objectPanel;
+  this->connect(this->ObjectPanel, SIGNAL(modified()), this, SIGNAL(modified()));
 
-public:
-  pqDisplayRepresentationWidget(QWidget* parent=0);
-  virtual ~pqDisplayRepresentationWidget();
+  QVBoxLayout *layout = new QVBoxLayout;
+  layout->setMargin(0);
+  layout->addWidget(objectPanel);
+  setLayout(layout);
+}
 
-signals:
-  void currentTextChanged(const QString&);
-
-public slots:
-  void setRepresentation(pqDataRepresentation* display);
-  
-  void reloadGUI();
-
-private slots:
-  void onCurrentTextChanged(const QString&);
-
-  /// Called when the qt widget changes, we mark undo set
-  /// and push the widget changes to the property.
-  void onQtWidgetChanged();
-
-  void updateLinks();
-private:
-  pqDisplayRepresentationWidgetInternal* Internal;
-};
-
-class PQCOMPONENTS_EXPORT pqDisplayRepresentationPropertyWidget : public pqPropertyWidget
+pqObjectPanelPropertyWidget::~pqObjectPanelPropertyWidget()
 {
-  Q_OBJECT
+}
 
-public:
-  pqDisplayRepresentationPropertyWidget(vtkSMProxy *proxy, QWidget *parent = 0);
-  ~pqDisplayRepresentationPropertyWidget();
+void pqObjectPanelPropertyWidget::apply()
+{
+  this->ObjectPanel->accept();
+}
 
-private:
-  pqDisplayRepresentationWidget *Widget;
-};
+void pqObjectPanelPropertyWidget::reset()
+{
+  this->ObjectPanel->reset();
+}
 
-#endif
-
+pqObjectPanel* pqObjectPanelPropertyWidget::getObjectPanel() const
+{
+  return this->ObjectPanel;
+}
