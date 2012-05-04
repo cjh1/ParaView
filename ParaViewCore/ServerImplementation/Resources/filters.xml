@@ -6260,10 +6260,11 @@ Probe is a filter that computes point attributes at specified point positions. T
    <!-- ==================================================================== -->
 #ifdef PARAVIEW_USE_MPI
    <SourceProxy name="StreamTracer" class="vtkDistributedStreamTracer"
+    label="Stream Tracer">
 #else
    <SourceProxy name="StreamTracer" class="vtkStreamTracer"
-#endif
     label="Stream Tracer">
+#endif
     <Documentation
        long_help="Integrate streamlines in a vector field."
        short_help="Integrate streamlines in a vector field.">
