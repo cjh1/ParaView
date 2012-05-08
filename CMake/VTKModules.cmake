@@ -56,7 +56,7 @@ set(_vtk_modules
   vtkViewsContext2D
   vtkIOExport
   vtkIOInfovis
-  vtkAMRCore
+  vtkFiltersAMR
   vtkChartsCore
   vtkIOEnSight
   vtkTestingRendering
@@ -332,6 +332,11 @@ if(BUILD_TESTING)
   list(APPEND _vtk_modules 
     vtkFiltersProgrammable
     vtkInteractionImage)
+endif()
+
+if(BUILD_EXAMPLES)
+  list(APPEND _vtk_modules 
+    vtkTestingCore)
 endif()
   
 # Now enable the modules
