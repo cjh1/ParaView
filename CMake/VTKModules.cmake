@@ -60,7 +60,12 @@ set(_vtk_modules
   vtkChartsCore
   vtkIOEnSight
   vtkTestingRendering
-  
+  # Needed to for tests that are built even with BUILD_TESTING off!
+  vtkInteractionImage
+  if(PARAVIEW_USE_VISITBRIDGE)
+    # Needed by VisItBridge
+    vtkFiltersTracers
+  endif() 
   # Modules that are required a runtime generated from:
   #
   # ParaViewFilters.xml
@@ -330,8 +335,7 @@ mark_as_advanced(Module_vtkGUISupportQt)
 # Note: Again there may be duplicated this intended to record the dependancy
 if(BUILD_TESTING)
   list(APPEND _vtk_modules 
-    vtkFiltersProgrammable
-    vtkInteractionImage)
+    vtkFiltersProgrammable)
 endif()
 
 if(BUILD_EXAMPLES)
