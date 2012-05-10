@@ -33,7 +33,7 @@ FOREACH(name ${ServersFilters_SRCS})
     vtkInteractionImage)
 ENDFOREACH(name)
 
-IF(PARAVIEW_USE_ICE_T AND PARAVIEW_USE_MPI AND VTK_USE_DISPLAY AND
+IF(PARAVIEW_USE_ICE_T AND PARAVIEW_USE_MPI AND
    PARAVIEW_DATA_ROOT)
   ADD_EXECUTABLE(TestIceTCompositePass TestIceTCompositePass.cxx)
   TARGET_LINK_LIBRARIES(TestIceTCompositePass vtkPVVTKExtensions)
@@ -80,23 +80,21 @@ IF(PARAVIEW_USE_ICE_T AND PARAVIEW_USE_MPI AND VTK_USE_DISPLAY AND
             -V Baseline/TestSimpleIceTCompositePass.png
             ${VTK_MPI_POSTFLAGS})
 
-  if (FIXME_CHRIS)
-    ADD_EXECUTABLE(TestIceTShadowMapPass TestIceTShadowMapPass.cxx)
-    TARGET_LINK_LIBRARIES(TestIceTShadowMapPass vtkPVVTKExtensions)
+  ADD_EXECUTABLE(TestIceTShadowMapPass TestIceTShadowMapPass.cxx)
+  TARGET_LINK_LIBRARIES(TestIceTShadowMapPass vtkPVVTKExtensions)
 
-    ADD_TEST(TestIceTShadowMapPass-image
-              ${VTK_MPIRUN_EXE} ${VTK_MPI_PRENUMPROC_FLAGS} ${VTK_MPI_NUMPROC_FLAG} 2 ${VTK_MPI_PREFLAGS}
-              ${CXX_TEST_PATH}/\${CTEST_CONFIGURATION_TYPE}/TestIceTShadowMapPass
-              --tdx 2
-              -D ${PARAVIEW_DATA_ROOT}
-              -T ${ParaView_BINARY_DIR}/Testing/Temporary
-              -V Baseline/TestIceTShadowMapPass.cxx.png
-              ${VTK_MPI_POSTFLAGS})
-  endif()
+  ADD_TEST(TestIceTShadowMapPass-image
+            ${VTK_MPIRUN_EXE} ${VTK_MPI_PRENUMPROC_FLAGS} ${VTK_MPI_NUMPROC_FLAG} 2 ${VTK_MPI_PREFLAGS}
+            ${CXX_TEST_PATH}/\${CTEST_CONFIGURATION_TYPE}/TestIceTShadowMapPass
+            --tdx 2
+            -D ${PARAVIEW_DATA_ROOT}
+            -T ${ParaView_BINARY_DIR}/Testing/Temporary
+            -V Baseline/TestIceTShadowMapPass.cxx.png
+            ${VTK_MPI_POSTFLAGS})
 ENDIF()
 
 
-IF (VTK_USE_DISPLAY AND VTK_DATA_ROOT AND PARAVIEW_DATA_ROOT)
+if(Module_vtkRenderingOpenGL AND VTK_DATA_ROOT AND PARAVIEW_DATA_ROOT)
   SET(ServersFiltersImage_SRCS
 # Enable these after the transfer function can take the vtkTable histograms.
 #TestTransferFunctionEditor
@@ -112,7 +110,7 @@ TestPVAMRDualClip
       )
     TARGET_LINK_LIBRARIES(${name} vtkPVVTKExtensions)
   ENDFOREACH(name)
-ENDIF (VTK_USE_DISPLAY AND VTK_DATA_ROOT AND PARAVIEW_DATA_ROOT)
+endif()
 
 IF (PARAVIEW_USE_MPI)
     IF (MPI_LIBRARY)
