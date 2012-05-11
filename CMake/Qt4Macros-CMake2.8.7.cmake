@@ -20,6 +20,7 @@
 #
 ######################################
 
+
 MACRO (QT4_EXTRACT_OPTIONS _qt4_files _qt4_options)
   SET(${_qt4_files})
   SET(${_qt4_options})
@@ -77,9 +78,10 @@ MACRO (QT4_GET_MOC_FLAGS _moc_flags)
       SET(${_moc_flags} ${${_moc_flags}} "-I${_current}")
     ENDIF("${_current}" MATCHES "\\.framework/?$")
   ENDFOREACH(_current ${_inc_DIRS})
+
   GET_DIRECTORY_PROPERTY(_defines COMPILE_DEFINITIONS)
   FOREACH(_current ${_defines})
-    SET(${_moc_flags} ${${_moc_flags}} "-D\"${_current}\"")
+    SET(${_moc_flags} ${${_moc_flags}} "-D${_current}")
   ENDFOREACH(_current ${_defines})
 
   IF(Q_WS_WIN)
