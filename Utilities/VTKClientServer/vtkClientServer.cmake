@@ -13,23 +13,23 @@ macro(pv_wrap_vtk_mod_cs module)
   pv_pre_wrap_vtk_mod_cs("${module}CS" "${module}")
   PVVTK_ADD_LIBRARY(${module}CS ${${module}CS_SRCS})
   target_link_libraries(${module}CS vtkClientServer ${module})
-
+  if(${module}_IMPLEMENTS)
+    set_property(TARGET ${module}CS PROPERTY COMPILE_DEFINITIONS
+      "${module}_AUTOINIT=1(${module})")
+  endif()
   # satisfy the auto init calls, this should done in VTK eventually  
-  if( ${module} STREQUAL "vtkRenderingCore" )
-    target_link_libraries(${module}CS 
-      vtkRenderingOpenGL
-      vtkInteractionStyle
-      vtkRenderingFreeTypeOpenGL)
-  endif() 
-  if( ${module} STREQUAL "vtkRenderingVolume" )
-    target_link_libraries(${module}CS vtkRenderingVolumeOpenGL)
-  endif()
-  if( ${module} STREQUAL "vtkRenderingFreeType" )
-    target_link_libraries(${module}CS vtkRenderingFreeTypeOpenGL)
-  endif()
-  if( ${module} STREQUAL "vtkIOImage" AND PARAVIEW_USE_MPI)
-    target_link_libraries(${module}CS vtkIOMPIImage)
-  endif()
+  #if( ${module} STREQUAL "vtkRenderingCore" )
+  #  target_link_libraries(${module}CS 
+  #    vtkRenderingOpenGL
+  #    vtkInteractionStyle
+  #    vtkRenderingFreeTypeOpenGL)
+  #endif() 
+  #if( ${module} STREQUAL "vtkRenderingVolume" )
+  #  target_link_libraries(${module}CS vtkRenderingVolumeOpenGL)
+  #endif()
+  #if( ${module} STREQUAL "vtkRenderingFreeType" )
+  #  target_link_libraries(${module}CS vtkRenderingFreeTypeOpenGL)
+  #endif()
   foreach(dep ${${module}_DEPENDS})
     if(NOT ${dep}_EXCLUDE_FROM_WRAPPING)
       target_link_libraries(${module}CS ${dep}CS)
