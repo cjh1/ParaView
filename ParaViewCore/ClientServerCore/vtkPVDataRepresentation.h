@@ -165,6 +165,10 @@ protected:
     vtkInformationVector** inputVector,
     vtkInformationVector* outputVector);
 
+  virtual int RequestUpdateTime (vtkInformation*,
+                                  vtkInformationVector**,
+                                 vtkInformationVector*);
+
   double UpdateTime;
   bool UpdateTimeValid;
 private:
@@ -177,6 +181,9 @@ private:
   double CacheKey;
   double ForcedCacheKey;
   bool NeedUpdate;
+
+  class Internals;
+  Internals* Implementation;
 
 //ETX
 };

@@ -23,7 +23,7 @@
 #cmakedefine VTK_MPI_SERVER_TD_POSTFLAGS "@VTK_MPI_SERVER_TD_POSTFLAGS@"
 #cmakedefine VTK_MPI_MAX_NUMPROCS @VTK_MPI_MAX_NUMPROCS@
 #cmakedefine DART_TESTING_TIMEOUT @DART_TESTING_TIMEOUT@
-#cmakedefine VTK_USE_MPI
+#cmakedefine PARAVIEW_USE_MPI
 #cmakedefine PV_TEST_INIT_COMMAND "@PV_TEST_INIT_COMMAND@"
 #cmakedefine PV_TEST_CLEAN_COMMAND "@PV_TEST_CLEAN_COMMAND@"
 
@@ -36,6 +36,10 @@
 // shell script to execute server, should contain proper port...
 // This line won't be split into smaller arguments
 #cmakedefine PV_SETUP_SCRIPT "@PV_SETUP_SCRIPT@"
+
+// if defined we use random port numbers for testing (needed for parallel
+// tests).
+#cmakedefine PV_TEST_USE_RANDOM_PORTS
 
 #ifndef DART_TESTING_TIMEOUT
 # define DART_TESTING_TIMEOUT 1500

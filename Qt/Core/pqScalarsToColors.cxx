@@ -197,10 +197,12 @@ void pqScalarsToColors::setScalarRange(double min, double max)
   dold = (dold > 0) ? dold : 1;
 
   double dnew = (max -min);
-  dnew = (dnew > 0) ? dnew : 1;
+  dnew = (dnew >= 0) ? dnew : 1;
 
   double scale = dnew/dold;
-
+  int allowDuplicateScalars = (min == max) ? 1 : 0; 
+  pqSMAdaptor::setElementProperty(
+    this->getProxy()->GetProperty("AllowDuplicateScalars"), allowDuplicateScalars);
   vtkSMDoubleVectorProperty* dvp = vtkSMDoubleVectorProperty::SafeDownCast(
     this->getProxy()->GetProperty("RGBPoints"));
   QList<QVariant> controlPoints = pqSMAdaptor::getMultipleElementProperty(dvp);

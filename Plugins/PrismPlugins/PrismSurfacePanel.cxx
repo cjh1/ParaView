@@ -8,20 +8,23 @@ Module:    PrismSurfacePanel.cxx
 #include "PrismSurfacePanel.h"
 
 // Qt includes
+#include <QComboBox>
+#include <QDoubleValidator>
+#include <QFileInfo>
+#include <QKeyEvent>
+#include <QLabel>
+#include <QMap>
+#include <QMessageBox>
+#include <QTableWidget>
+#include <QtDebug>
 #include <QTreeWidget>
 #include <QVariant>
-#include <QLabel>
-#include <QComboBox>
-#include <QTableWidget>
-#include <QKeyEvent>
-#include <QMessageBox>
-#include <QMap>
-#include <QFileInfo>
-#include <QDoubleValidator>
+
 // VTK includes
 
 // ParaView Server Manager includes
 #include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMSourceProxy.h"
 #include "vtkSMStringVectorProperty.h"
 #include "vtkSMArraySelectionDomain.h"
@@ -99,14 +102,14 @@ SESAMEConversionsForTable::SESAMEConversionsForTable()
 class PrismSurfacePanel::pqUI : public QObject, public Ui::PrismSurfacePanelWidget 
 {
 public:
-    pqUI(PrismSurfacePanel* p) : QObject(p)
+    pqUI(PrismSurfacePanel* p, pqProxy* object_proxy) : QObject(p)
     {
         // Make a clone of the XDMFReader proxy.
         // We'll use the clone to help us with the interdependent properties.
         // In other words, modifying properties outside of accept()/reset() is wrong.
         // We have to modify properties to get the information we need
         // and we'll do that with the clone.
-        vtkSMProxyManager* pm = vtkSMProxy::GetProxyManager();
+        vtkSMSessionProxyManager* pm = object_proxy->proxyManager();
         PanelHelper.TakeReference(pm->NewProxy("misc", "SESAMEReaderHelper"));
         PanelHelper->InitializeAndCopyFromProxy(p->proxy());
         this->PanelHelper->UpdatePropertyInformation();
@@ -119,7 +122,7 @@ public:
     QMap<int,SESAMEConversionsForTable> SESAMEConversions;
 
 
-    bool LoadConversions(QString &filename);
+    bool LoadConversions(const QString &filename);
 
     PrismTableWidget *ConversionTree;
     SESAMEComboBoxDelegate* ConversionVariableEditor;
@@ -136,7 +139,7 @@ public:
 PrismSurfacePanel::PrismSurfacePanel(pqProxy* object_proxy, QWidget* p) :
 pqNamedObjectPanel(object_proxy, p)
 {
-    this->UI = new pqUI(this);
+    this->UI = new pqUI(this, object_proxy);
     this->UI->setupUi(this);
 
     this->UI->Table306Found=false;
@@ -456,50 +459,52 @@ void PrismSurfacePanel::onConversionFileButton()
 
 }
 
-bool PrismSurfacePanel::pqUI::LoadConversions(QString &fileName)
+bool PrismSurfacePanel::pqUI::LoadConversions(const QString &fileName)
 {
-    if(fileName.isEmpty())
-        return false;
-
-    //First check to make sure file is valid
-    ifstream in(fileName.toAscii().constData());
-   // bool done=false;
-    const int bufferSize = 4096;
-    char buffer[bufferSize];
-    in.getline(buffer, bufferSize);
-    if(in.gcount())
+  if (fileName.isEmpty())
     {
-
-        vtkstd::string line;
-        line.assign(buffer,in.gcount()-1);
-        if(line.find("<PRISM_Conversions>")==line.npos)
-        {
-            //This is an incorrect file format.
-
-            QString message;
-            message="Invalid SESAME Conversion File: ";
-            message.append(fileName);
-            QMessageBox::critical(NULL,QString("Error"),message);
-            in.close();
-            return false;
-        }
+    return false;
     }
 
-    in.close();
-  
-    
-    vtkXMLDataElement* rootElement = vtkXMLUtilities::ReadElementFromFile(fileName.toAscii().constData());
-    if(!rootElement)
-        return false;
-    if(strcmp(rootElement->GetName(),"PRISM_Conversions"))
+  //First check to make sure file is valid
+  QFile file(fileName.toAscii().constData());
+  if (!file.open(QFile::ReadOnly))
     {
-        QString message;
-        message="Corrupted or Invalid SESAME Conversions File: ";
-        message.append(fileName);
-        QMessageBox::critical(NULL,QString("Error"),message);
-
-        return false;
+    qCritical() << "Failed to open file : " << fileName;
+    return false;
     }
+
+  QString data (file.readAll());
+  file.close();
+
+  if (data.indexOf("<PRISM_Conversions>") == -1)
+    {
+    //This is an incorrect file format.
+    QString message;
+    message="Invalid SESAME Conversion File: ";
+    message.append(fileName);
+    QMessageBox::critical(NULL,QString("Error"),message);
+    return false;
+    }
+
+  vtkXMLDataElement* rootElement = vtkXMLUtilities::ReadElementFromString(
+    data.toAscii().constData());
+  if (!rootElement)
+    {
+    return false;
+    }
+
+  if (strcmp(rootElement->GetName(),"PRISM_Conversions"))
+    {
+    QString message;
+    message="Corrupted or Invalid SESAME Conversions File: ";
+    message.append(fileName);
+    QMessageBox::critical(NULL,QString("Error"),message);
+
+    return false;
+    }
+
+  this->SESAMEConversions.clear();
 
 
    this->SESAMEConversions.clear();
@@ -513,40 +518,40 @@ bool PrismSurfacePanel::pqUI::LoadConversions(QString &fileName)
        {
            SESAMEConversionsForTable tableData;
 
-           vtkstd::string data= tableElement->GetAttribute("Id");
+           std::string data_str= tableElement->GetAttribute("Id");
            int intValue;
-           sscanf(data.c_str(),"%d",&intValue);
+           sscanf(data_str.c_str(),"%d",&intValue);
            tableData.TableId=intValue;
 
            for(int v=0;v<tableElement->GetNumberOfNestedElements();v++)
            {
                vtkXMLDataElement* variableElement = tableElement->GetNestedElement(v);
-               vtkstd::string variableString= variableElement->GetName();
+               std::string variableString= variableElement->GetName();
                if(variableString=="Variable")
                {
                    SESAMEConversionVariable variableData;
                    double value;
 
-                    data=variableElement->GetAttribute("Name");
-                    variableData.Name=data.c_str();
+                    data_str=variableElement->GetAttribute("Name");
+                    variableData.Name=data_str.c_str();
 
-                    data=variableElement->GetAttribute("SESAME_Units");
-                    variableData.SESAMEUnits=data.c_str();
+                    data_str=variableElement->GetAttribute("SESAME_Units");
+                    variableData.SESAMEUnits=data_str.c_str();
 
 
-                    data= variableElement->GetAttribute("SESAME_SI");
-                    sscanf(data.c_str(),"%lf",&value);
+                    data_str= variableElement->GetAttribute("SESAME_SI");
+                    sscanf(data_str.c_str(),"%lf",&value);
                     variableData.SIConversion=value;
 
-                    data=variableElement->GetAttribute("SESAME_SI_Units");
-                    variableData.SIUnits=data.c_str();
+                    data_str=variableElement->GetAttribute("SESAME_SI_Units");
+                    variableData.SIUnits=data_str.c_str();
 
-                    data= variableElement->GetAttribute("SESAME_cgs");
-                    sscanf(data.c_str(),"%lf",&value);
+                    data_str= variableElement->GetAttribute("SESAME_cgs");
+                    sscanf(data_str.c_str(),"%lf",&value);
                     variableData.cgsConversion=value;
 
-                    data=variableElement->GetAttribute("SESAME_cgs_Units");
-                    variableData.cgsUnits=data.c_str();
+                    data_str=variableElement->GetAttribute("SESAME_cgs_Units");
+                    variableData.cgsUnits=data_str.c_str();
 
                     tableData.VariableConversions.insert(variableData.Name,variableData);
                }
@@ -1000,7 +1005,7 @@ void PrismSurfacePanel::accept()
     pqSMAdaptor::setElementProperty(
         this->proxy()->GetProperty("ZLogScaling"), this->UI->ZLogScaling->isChecked());
     pqSettings* settings = pqApplicationCore::instance()->settings();
-    settings->setValue("PrismPlugin/Conversions/SESAMEFileName", this->UI->ConversionFileName);
+    //settings->setValue("PrismPlugin/Conversions/SESAMEFileName", this->UI->ConversionFileName);
 
 
 
@@ -1100,15 +1105,19 @@ void PrismSurfacePanel::setupConversions()
 
   pqSettings* settings = pqApplicationCore::instance()->settings();
 
-  if ( settings->contains("PrismPlugin/Conversions/SESAMEFileName") )
-  {
-      this->UI->ConversionFileName = settings->value("PrismPlugin/Conversions/SESAMEFileName").toString();
-      this->UI->LoadConversions(this->UI->ConversionFileName);
-  }
-  else
-  {
-      this->UI->ConversionFileName = QString();
-  }
+  // disabling loading of SESAMEFileName from settings since that's conflicting
+  // with the compiled in conversions file.
+  //if ( settings->contains("PrismPlugin/Conversions/SESAMEFileName") )
+  //{
+  //    this->UI->ConversionFileName = settings->value("PrismPlugin/Conversions/SESAMEFileName").toString();
+  //    this->UI->LoadConversions(this->UI->ConversionFileName);
+  //}
+  //else
+    {
+    // load compiled in SESAME file.
+    this->UI->ConversionFileName = "Default";
+    this->UI->LoadConversions(":/PrismPlugin/ParaViewResources/SESAMEConversions.xml");
+    }
 
   QString units;
   if ( settings->contains("PrismPlugin/Conversions/SESAMEUnits") )

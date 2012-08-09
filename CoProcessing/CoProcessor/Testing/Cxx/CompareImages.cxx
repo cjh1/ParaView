@@ -27,7 +27,7 @@ int IsFileValid(const char* fileName)
     vtkGenericWarningMacro("Could not find file " << fileName);
     return 0;
     }
-  if(vtksys::SystemTools::GetFilenameLastExtension(fileName) == ".png" == 0)
+  if(vtksys::SystemTools::GetFilenameLastExtension(fileName) != ".png")
     {
     vtkGenericWarningMacro("Wrong file type " << fileName);
     return 0;
@@ -63,7 +63,7 @@ int main(int argc, char* argv[])
 
   double threshold = atof(argv[2]);
 
-  if(!testing->RegressionTest(vtkImageData::SafeDownCast(reader->GetOutput()), threshold))
+  if(!testing->RegressionTest(reader, threshold))
     {
     return 1;
     }

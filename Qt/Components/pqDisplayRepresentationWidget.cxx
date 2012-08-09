@@ -36,6 +36,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include<QPointer>
 
+#include "pqServerManagerModel.h"
 #include "pqApplicationCore.h"
 #include "pqPipelineRepresentation.h"
 #include "pqPipelineSource.h"
@@ -180,4 +181,28 @@ void pqDisplayRepresentationWidget::onCurrentTextChanged(const QString&)
     {
     this->Internal->Display->renderViewEventually();
     }
+}
+
+//-----------------------------------------------------------------------------
+pqDisplayRepresentationPropertyWidget::pqDisplayRepresentationPropertyWidget(
+  vtkSMProxy *smProxy, QWidget *parentObject)
+  : pqPropertyWidget(smProxy, parentObject)
+{
+  QVBoxLayout *layoutLocal = new QVBoxLayout;
+  layoutLocal->setMargin(0);
+  this->Widget = new pqDisplayRepresentationWidget;
+  layoutLocal->addWidget(this->Widget);
+  setLayout(layoutLocal);
+
+  pqServerManagerModel *smm = pqApplicationCore::instance()->getServerManagerModel();
+  pqPipelineRepresentation *repr = smm->findItem<pqPipelineRepresentation *>(smProxy);
+  if(repr)
+    {
+    this->Widget->setRepresentation(repr);
+    }
+}
+
+//-----------------------------------------------------------------------------
+pqDisplayRepresentationPropertyWidget::~pqDisplayRepresentationPropertyWidget()
+{
 }

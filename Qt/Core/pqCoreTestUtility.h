@@ -85,6 +85,12 @@ public:
                            ostream& Output, 
                            const QString& TempDirectory);
 
+  static bool CompareImage(const QString& testPNGImage,
+                           const QString& ReferenceImage, 
+                           double Threshold, 
+                           ostream& Output, 
+                           const QString& TempDirectory);
+
   /// Compares the contents of any arbitrary QWidget to a reference image,
   /// returning true iff the two match within a given threshold
   static bool CompareImage(QWidget* widget,
@@ -95,7 +101,8 @@ public:
                            const QSize& size = QSize(300, 300));
 
   static bool CompareView(pqView* curView,
-    const QString& referenceImage, double threshold, const QString& tempDirectory);
+    const QString& referenceImage, double threshold, const QString& tempDirectory,
+    const QSize& size=QSize());
 
 private:
   QStringList TestFilenames;

@@ -46,6 +46,7 @@ QT4_WRAP_CPP(MOC_BUILT_SOURCES
   pqApplicationCore.h
   pqBrandPluginsLoader.h
   pqChartRepresentation.h
+  pqChartSeriesSettingsModel.h
   pqContextView.h
   pqCollaborationEventPlayer.h
   pqCollaborationManager.h
@@ -56,6 +57,7 @@ QT4_WRAP_CPP(MOC_BUILT_SOURCES
   pqComparativeXYBarChartView.h
   pqComparativeXYChartView.h
   pqCoreTestUtility.h
+  pqCoreUtilities.h
   pqDataRepresentation.h
   pqDisplayPolicy.h
   pqFileDialog.h
@@ -72,13 +74,12 @@ QT4_WRAP_CPP(MOC_BUILT_SOURCES
   pqLinksModel.h
   pqLinkViewWidget.h
   pqLookupTableManager.h
+  pqNonEditableStyledItemDelegate.h
   pqObjectBuilder.h
   pqOutputWindow.h
   pqOutputWindowAdapter.h
   pqOutputPort.h
   pqParallelCoordinatesChartView.h
-  pqParallelCoordinatesSettingsModel.h
-  pqPickHelper.h
   pqPipelineSource.h
   pqPipelineFilter.h
   pqPipelineRepresentation.h
@@ -87,6 +88,7 @@ QT4_WRAP_CPP(MOC_BUILT_SOURCES
   pqPluginManager.h
   pqProgressManager.h
   pqPropertyLinks.h
+  pqPropertyLinksConnection.h
   pqPropertyManager.h
   pqProxy.h
   pqQVTKWidget.h
@@ -106,7 +108,6 @@ QT4_WRAP_CPP(MOC_BUILT_SOURCES
   pqServerManagerModel.h
   pqServerManagerModelItem.h
   pqServerManagerObserver.h
-  pqServerManagerSelectionModel.h
   pqSettings.h
   pqSpreadSheetView.h
   pqSpreadSheetViewModel.h
@@ -116,8 +117,6 @@ QT4_WRAP_CPP(MOC_BUILT_SOURCES
   pqStandardViewModules.h
   pqTextRepresentation.h
   pqTimeKeeper.h
-  pqTwoDRenderView.h
-#  pqScatterPlotView.h
   pqUndoStack.h
   pqView.h
   pqViewExporterManager.h
@@ -138,22 +137,8 @@ QT4_WRAP_UI(UI_BUILT_SOURCES
   ${UI_FORMS}
 )
 
-SET(PV_TEST_SERVER_ROOT "localhost" CACHE STRING
-  "Node which serves as the root node for the cluster when testing in parallel")
-MARK_AS_ADVANCED(PV_TEST_SERVER_ROOT)
-
-CONFIGURE_FILE(
-  "${CMAKE_CURRENT_SOURCE_DIR}/Resources/pqTestingServers.pvsc.in"
-  "${CMAKE_CURRENT_BINARY_DIR}/Resources/pqTestingServers.pvsc")
-
-GENERATE_QT_RESOURCE_FROM_FILES(
-  "${CMAKE_CURRENT_BINARY_DIR}/Resources/pqCoreTesting.qrc"
-  "/pqCoreTesting"
-  "${CMAKE_CURRENT_BINARY_DIR}/Resources/pqTestingServers.pvsc")
-
 SET(UI_RESOURCES
   "${CMAKE_CURRENT_SOURCE_DIR}/Resources/pqCore.qrc"
-  "${CMAKE_CURRENT_BINARY_DIR}/Resources/pqCoreTesting.qrc"
 )
 
 QT4_ADD_RESOURCES(RCS_SOURCES
@@ -172,7 +157,7 @@ SOURCE_GROUP("Generated" FILES
   ${UI_BUILT_SOURCES}
 )
 
-VTK_ADD_LIBRARY(pqCore
+PVVTK_ADD_LIBRARY(pqCore
   pq3DWidgetFactory.cxx
   pq3DWidgetFactory.h
   pqAnimationCue.cxx
@@ -187,6 +172,8 @@ VTK_ADD_LIBRARY(pqCore
   pqBrandPluginsLoader.h
   pqChartRepresentation.cxx
   pqChartRepresentation.h
+  pqChartSeriesSettingsModel.cxx
+  pqChartSeriesSettingsModel.h
   pqCollaborationEventPlayer.cxx
   pqCollaborationEventPlayer.h
   pqCollaborationManager.cxx
@@ -254,6 +241,8 @@ VTK_ADD_LIBRARY(pqCore
   pqLookupTableManager.h
   pqNameCount.cxx
   pqNameCount.h
+  pqNonEditableStyledItemDelegate.cxx
+  pqNonEditableStyledItemDelegate.h
   pqObjectBuilder.cxx
   pqObjectBuilder.h
   pqOptions.cxx
@@ -266,10 +255,6 @@ VTK_ADD_LIBRARY(pqCore
   pqOutputWindow.h
   pqParallelCoordinatesChartView.cxx
   pqParallelCoordinatesChartView.h
-  pqParallelCoordinatesSettingsModel.cxx
-  pqParallelCoordinatesSettingsModel.h
-  pqPickHelper.cxx
-  pqPickHelper.h
   pqPipelineFilter.cxx
   pqPipelineFilter.h
   pqPipelineRepresentation.cxx
@@ -286,12 +271,16 @@ VTK_ADD_LIBRARY(pqCore
   pqProgressManager.h
   pqPropertyLinks.cxx
   pqPropertyLinks.h
+  pqPropertyLinksConnection.cxx
+  pqPropertyLinksConnection.h
   pqPropertyManager.cxx
   pqPropertyManager.h
   pqProxy.cxx
   pqProxy.h
   pqProxyModifiedStateUndoElement.cxx
   pqProxyModifiedStateUndoElement.h
+  pqProxySelection.cxx
+  pqProxySelection.h
   pqQVTKWidget.cxx
   pqQVTKWidgetEventPlayer.cxx
   pqQVTKWidgetEventPlayer.h
@@ -330,8 +319,6 @@ VTK_ADD_LIBRARY(pqCore
   pqServerManagerModelItem.h
   pqServerManagerObserver.cxx
   pqServerManagerObserver.h
-  pqServerManagerSelectionModel.cxx
-  pqServerManagerSelectionModel.h
   pqServerResource.cxx
   pqServerResource.h
   pqSettings.cxx
@@ -358,8 +345,6 @@ VTK_ADD_LIBRARY(pqCore
   pqTimeKeeper.h
   pqTreeLayoutStrategyInterface.cxx
   pqTreeLayoutStrategyInterface.h
-  pqTwoDRenderView.cxx
-  pqTwoDRenderView.h
   pqUndoStack.cxx
   pqUndoStack.h
   pqView.cxx
@@ -398,19 +383,17 @@ VTK_ADD_LIBRARY(pqCore
 #)
 
 TARGET_LINK_LIBRARIES(pqCore
-  QtTesting
   pqWidgets
-  QVTK
-  vtkCharts
-  vtkPVServerManager
   protobuf
+  QtTesting
+  vtkChartsCore
+  vtkGUISupportQt
+  vtkPVServerManager
 )
 
-IF(VTK_USE_INFOVIS)
-  TARGET_LINK_LIBRARIES(pqCore
-    vtkInfovisCS
-  )
-ENDIF(VTK_USE_INFOVIS)
+pv_set_link_interface_libs(pqCore
+  pqWidgets
+  vtkPVServerManager)
 
 IF(QT_TESTING_WITH_PYTHON)
   TARGET_LINK_LIBRARIES(pqCore

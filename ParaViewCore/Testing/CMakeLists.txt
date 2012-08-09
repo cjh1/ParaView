@@ -23,6 +23,7 @@ IF(PYTHON_EXECUTABLE AND VTK_HEADER_TESTING_PY)
       vtkPriorityHelper.h
       vtkProcessModuleConnectionManagerInternals.h
       vtkProcessModuleInternals.h
+      vtkPVDataDeliveryManager.h
       vtkPVPlugin.h
       vtkPVPluginTracker.h
       vtkPVPythonPluginInterface.h
@@ -38,7 +39,7 @@ IF(PYTHON_EXECUTABLE AND VTK_HEADER_TESTING_PY)
       vtkSMPropertyInternals.h
       vtkSMProxyConfigurationFileInfo.h
       vtkSMProxyInternals.h
-      vtkSMProxyManagerInternals.h
+      vtkSMSessionProxyManagerInternals.h
       vtkSMRepresentationStrategyVector.h
       vtkSMUncheckedPropertyHelper.h
       vtkSMVectorPropertyTemplate.h
@@ -50,6 +51,8 @@ IF(PYTHON_EXECUTABLE AND VTK_HEADER_TESTING_PY)
       vtkSpyPlotUniReader.h
       vtkUndoStackInternal.h
       vtkReservedRemoteObjectIds.h
+      vtkSMSessionProxyManager.h
+      vtkPVSynchronizedRenderWindows.h
       )
   ENDFOREACH(part)
 ENDIF(PYTHON_EXECUTABLE AND VTK_HEADER_TESTING_PY)

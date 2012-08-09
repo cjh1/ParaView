@@ -75,14 +75,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 //-----------------------------------------------------------------------------
 pqGenericSummaryDisplayPanel::pqGenericSummaryDisplayPanel(pqRepresentation *representation,
                                                            const QList<DisplayAttributes> &attributes,
-                                                           QWidget *parent)
-  : QWidget(parent)
+                                                           QWidget *p)
+  : QWidget(p)
 {
   this->Representation = representation;
   this->Attributes = attributes;
 
   vtkSMProxy *proxy = representation->getProxy();
-  QFormLayout *layout = new QFormLayout;
+  QFormLayout *l = new QFormLayout;
+  l->setMargin(2);
+  l->setVerticalSpacing(4);
 
   // add color by combo box
   if(attributes.contains(ColorBy))
@@ -90,7 +92,7 @@ pqGenericSummaryDisplayPanel::pqGenericSummaryDisplayPanel(pqRepresentation *rep
     // color by combo box
     pqDisplayColorWidget *colorBy = new pqDisplayColorWidget(this);
     colorBy->setRepresentation(qobject_cast<pqDataRepresentation *>(representation));
-    layout->addRow("Color By:", colorBy);
+    l->addRow(colorBy);
 
     // scalar bar buttons
     QHBoxLayout *buttonLayout = new QHBoxLayout;
@@ -114,18 +116,17 @@ pqGenericSummaryDisplayPanel::pqGenericSummaryDisplayPanel(pqRepresentation *rep
     QPushButton *resetRangeButton = new QPushButton(QIcon(QString(":/pqWidgets/Icons/pqResetRange24.png")), "Rescale", this);
     QAction *resetRangeAction = new QAction(this);
     connect(resetRangeButton, SIGNAL(clicked()), resetRangeAction, SLOT(trigger()));
-    new pqResetScalarRangeReaction(resetRangeAction);
     buttonLayout->addWidget(resetRangeButton);
+    new pqResetScalarRangeReaction(resetRangeAction);
 
-
-    layout->addRow("", buttonLayout);
+    l->addRow(buttonLayout);
     }
 
   // add line width spin box
   if(attributes.contains(LineWidth))
     {
     QDoubleSpinBox *spinBox = new QDoubleSpinBox(this);
-    layout->addRow("Line Width:", spinBox);
+    l->addRow("Line Width:", spinBox);
 
     this->Links.addPropertyLink(spinBox,
                                 "value",
@@ -138,7 +139,7 @@ pqGenericSummaryDisplayPanel::pqGenericSummaryDisplayPanel(pqRepresentation *rep
   if(attributes.contains(PointSize))
     {
     QDoubleSpinBox *spinBox = new QDoubleSpinBox(this);
-    layout->addRow("Point Size:", spinBox);
+    l->addRow("Point Size:", spinBox);
 
     this->Links.addPropertyLink(spinBox,
                                 "value",
@@ -162,7 +163,7 @@ pqGenericSummaryDisplayPanel::pqGenericSummaryDisplayPanel(pqRepresentation *rep
                                 proxy,
                                 proxy->GetProperty("EdgeColor"));
 
-    layout->addRow("Edge Color:", button);
+    l->addRow("Edge Color:", button);
     }
 
   // add slice direction combo box
@@ -192,7 +193,7 @@ pqGenericSummaryDisplayPanel::pqGenericSummaryDisplayPanel(pqRepresentation *rep
                                     proxy,
                                     sliceDirectionProperty);
 
-        layout->addRow("Slice Direction:", directions);
+        l->addRow("Slice Direction:", directions);
         }
       }
     }
@@ -225,7 +226,7 @@ pqGenericSummaryDisplayPanel::pqGenericSummaryDisplayPanel(pqRepresentation *rep
 
     this->Links.addPropertyLink(slider, "value", SIGNAL(valueChanged(int)), proxy, slice);
 
-    layout->addRow("Slice Number:", sliceNumberWidget);
+    l->addRow("Slice Number:", sliceNumberWidget);
     }
 
   // add volume mapper combo box
@@ -255,12 +256,12 @@ pqGenericSummaryDisplayPanel::pqGenericSummaryDisplayPanel(pqRepresentation *rep
                                     proxy,
                                     volumeMapperProperty);
 
-        layout->addRow("Volume Mapper:", mappers);
+        l->addRow("Volume Mapper:", mappers);
         }
       }
     }
 
-  this->setLayout(layout);
+  this->setLayout(l);
 }
 
 //-----------------------------------------------------------------------------

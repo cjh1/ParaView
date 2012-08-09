@@ -36,12 +36,12 @@
 #include "vtkPGenericEnSightReader.h"
 
 #include "vtkIdTypeArray.h" // For ivars
-#include <vtkstd/map> // For ivars
-#include <vtkstd/string> // For ivars
-#include <vtkstd/algorithm> // For ivars
-#include <vtkstd/string> // For ivars
-#include <vtkstd/vector> // For ivars
-#include <vtkstd/map> // For ivars
+#include <map> // For ivars
+#include <string> // For ivars
+#include <algorithm> // For ivars
+#include <string> // For ivars
+#include <vector> // For ivars
+#include <map> // For ivars
 
 class vtkDataSet;
 class vtkIdList;
@@ -65,26 +65,42 @@ class VTK_EXPORT vtkPEnSightReader : public vtkPGenericEnSightReader
 
   //----------------------------------------------------------------------------
   // PointIds and CellIds must be stored in a different way:
-  // vtkstd::vector in non distributed mode
-  // vtkstd::map in distributed mode
+  // std::vector in non distributed mode
+  // std::map in distributed mode
   // note: Ensight Ids are INTEGERS, not longs
   class vtkPEnSightReaderCellIds
   {
 
   public:
-    typedef vtkstd::map< int , int > IntIntMap;
-    typedef vtkstd::vector< int > IntVector;
+    typedef std::map< int , int > IntIntMap;
+    typedef std::vector< int > IntVector;
 
-    vtkPEnSightReaderCellIds()
+    vtkPEnSightReaderCellIds() :
+      cellMap(NULL),
+      cellNumberOfIds(-1),
+      cellLocalNumberOfIds(-1),
+      cellVector(NULL),
+      ImplicitDimensions(NULL),
+      ImplicitLocalDimensions(NULL),
+      ImplicitSplitDimension(-1),
+      ImplicitSplitDimensionBeginIndex(-1),
+      ImplicitSplitDimensionEndIndex(-1),
+      mode (NON_SPARSE_MODE)
       {
-      this->mode = NON_SPARSE_MODE;
-      this->cellMap = NULL;
-      this->cellVector = NULL;
       }
 
-    vtkPEnSightReaderCellIds(EnsightReaderCellIdMode amode)
+    vtkPEnSightReaderCellIds(EnsightReaderCellIdMode amode) :
+      cellMap(NULL),
+      cellNumberOfIds(-1),
+      cellLocalNumberOfIds(-1),
+      cellVector(NULL),
+      ImplicitDimensions(NULL),
+      ImplicitLocalDimensions(NULL),
+      ImplicitSplitDimension(-1),
+      ImplicitSplitDimensionBeginIndex(-1),
+      ImplicitSplitDimensionEndIndex(-1),
+      mode (amode)
       {
-      this->mode = amode;
       if( this->mode == SPARSE_MODE )
         {
         this->cellMap = new IntIntMap;
@@ -109,12 +125,9 @@ class VTK_EXPORT vtkPEnSightReader : public vtkPGenericEnSightReader
 
     ~vtkPEnSightReaderCellIds()
       {
-      if( this->mode == SPARSE_MODE )
-        delete this->cellMap;
-      else if( this->mode == IMPLICIT_STRUCTURED_MODE )
-        delete this->ImplicitDimensions;
-      else
-        delete this->cellVector;
+      delete this->cellMap;
+      delete this->cellVector;
+      delete [] this->ImplicitDimensions;
       }
 
     void SetMode(EnsightReaderCellIdMode amode)
@@ -210,7 +223,7 @@ class VTK_EXPORT vtkPEnSightReader : public vtkPGenericEnSightReader
           }
         case SPARSE_MODE:
           {
-          vtkstd::map<int,int>::iterator it = this->cellMap->find(id);
+          std::map<int,int>::iterator it = this->cellMap->find(id);
           if( it == this->cellMap->end() )
             return -1;
           else
@@ -242,7 +255,7 @@ class VTK_EXPORT vtkPEnSightReader : public vtkPGenericEnSightReader
           }
         case SPARSE_MODE:
           {
-          vtkstd::map<int,int>::iterator it = this->cellMap->find(id);
+          std::map<int,int>::iterator it = this->cellMap->find(id);
           if( it == this->cellMap->end() )
             this->cellNumberOfIds++;
 
@@ -851,7 +864,7 @@ class VTK_EXPORT vtkPEnSightReader : public vtkPGenericEnSightReader
   int GhostLevels;
 
 //BTX
-  vtkstd::map<vtkstd::string, vtkstd::map<int, long> > FileOffsets;
+  std::map<std::string, std::map<int, long> > FileOffsets;
 //ETX
 
  private:

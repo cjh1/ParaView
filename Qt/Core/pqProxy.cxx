@@ -33,18 +33,21 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "vtkEventQtSlotConnect.h"
 #include "vtkPVXMLElement.h"
-#include "vtkSmartPointer.h"
 #include "vtkSMProperty.h"
 #include "vtkSMPropertyIterator.h"
 #include "vtkSMProxy.h"
 #include "vtkSMProxyIterator.h"
 #include "vtkSMProxyManager.h"
+#include "vtkSMSession.h"
+#include "vtkSMSessionProxyManager.h"
+#include "vtkSmartPointer.h"
 
-#include "pqHelperProxyRegisterUndoElement.h"
-#include "pqUndoStack.h"
 #include "pqApplicationCore.h"
+#include "pqHelperProxyRegisterUndoElement.h"
+#include "pqServer.h"
 #include "pqServerManagerModel.h"
 #include "pqServerManagerObserver.h"
+#include "pqUndoStack.h"
 
 #include <QMap>
 #include <QList>
@@ -99,6 +102,12 @@ pqProxy::~pqProxy()
 }
 
 //-----------------------------------------------------------------------------
+pqServer* pqProxy::getServer() const
+{
+  return this->Server;
+}
+
+//-----------------------------------------------------------------------------
 void pqProxy::addHelperProxy(const QString& key, vtkSMProxy* proxy)
 {
   bool already_added = false;
@@ -114,7 +123,8 @@ void pqProxy::addHelperProxy(const QString& key, vtkSMProxy* proxy)
 
     QString groupname = QString("pq_helper_proxies.%1").arg(
       this->getProxy()->GetGlobalIDAsString());
-    vtkSMProxyManager* pxm = proxy->GetProxyManager();
+
+    vtkSMSessionProxyManager* pxm = this->proxyManager();
     pxm->RegisterProxy(groupname.toAscii().data(), 
       key.toAscii().data(), proxy);
     }
@@ -136,7 +146,7 @@ void pqProxy::removeHelperProxy(const QString& key, vtkSMProxy* proxy)
     {
     QString groupname = QString("pq_helper_proxies.%1").arg(
       this->getProxy()->GetGlobalIDAsString());
-    vtkSMProxyManager* pxm = proxy->GetProxyManager();
+    vtkSMSessionProxyManager* pxm = this->proxyManager();
     const char* name = pxm->GetProxyName(groupname.toAscii().data(), proxy);
     if (name)
       {
@@ -152,6 +162,7 @@ void pqProxy::updateHelperProxies() const
     this->getProxy()->GetGlobalIDAsString());
   vtkSMProxyIterator* iter = vtkSMProxyIterator::New();
   iter->SetModeToOneGroup();
+  iter->SetSession(this->getProxy()->GetSession());
   for (iter->Begin(groupname.toAscii().data()); !iter->IsAtEnd(); iter->Next())
     {
     this->addInternalHelperProxy(QString(iter->GetKey()), iter->GetProxy());
@@ -162,20 +173,21 @@ void pqProxy::updateHelperProxies() const
 //-----------------------------------------------------------------------------
 void pqProxy::clearHelperProxies()
 {
-  if (this->getServer())
+  if ( this->getServer() && this->getServer()->session() &&
+       !this->getServer()->session()->IsMultiClients())
     {
     // This is sort-of-a-hack to ensure that when this operation (delete)
     // is undo, all the helper proxies are discovered correctly. This needs to
     // happen only when all helper proxies are still around.
     pqHelperProxyRegisterUndoElement* elem =
-      pqHelperProxyRegisterUndoElement::New();
+        pqHelperProxyRegisterUndoElement::New();
     elem->SetOperationTypeToUndo(); // Undo deletion
     elem->RegisterHelperProxies(this);
     ADD_UNDO_ELEM(elem);
     elem->Delete();
     }
 
-  vtkSMProxyManager* pxm = this->getProxy()->GetProxyManager();
+  vtkSMSessionProxyManager* pxm = this->proxyManager();
   if (pxm)
     {
     QString groupname = QString("pq_helper_proxies.%1").arg(
@@ -249,7 +261,7 @@ void pqProxy::rename(const QString& newname)
 {
   if(newname != this->SMName)
     {
-    vtkSMProxyManager* pxm = this->getProxy()->GetProxyManager();
+    vtkSMSessionProxyManager* pxm = this->proxyManager();
     pxm->RegisterProxy(this->getSMGroup().toAscii().data(),
       newname.toAscii().data(), this->getProxy());
     pxm->UnRegisterProxy(this->getSMGroup().toAscii().data(),
@@ -361,10 +373,10 @@ void pqProxy::setDefaultPropertyValues()
 }
 
 //-----------------------------------------------------------------------------
-vtkSMProxyManager* pqProxy::proxyManager() const
+vtkSMSessionProxyManager* pqProxy::proxyManager() const
 {
   return this->Internal->Proxy ?
-    this->Internal->Proxy->GetProxyManager() : NULL;
+         this->Internal->Proxy->GetSessionProxyManager() : NULL;
 }
 //-----------------------------------------------------------------------------
 void pqProxy::initialize()

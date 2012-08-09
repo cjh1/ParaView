@@ -18,7 +18,7 @@
 #include "vtkPVXMLElement.h"
 #include "vtkSMIntVectorProperty.h"
 
-#include <vtkstd/vector>
+#include <vector>
 
 vtkStandardNewMacro(vtkSMIntRangeDomain);
 
@@ -35,7 +35,7 @@ struct vtkSMIntRangeDomainInternals
 
     EntryType() : Min(0), Max(0), Resolution(0), MinSet(0), MaxSet(0), ResolutionSet(0) {}
   };
-  vtkstd::vector<EntryType> Entries;
+  std::vector<EntryType> Entries;
 };
 
 //---------------------------------------------------------------------------
@@ -374,6 +374,7 @@ int vtkSMIntRangeDomain::ReadXMLAttributes(vtkSMProperty* prop, vtkPVXMLElement*
       }
     }
 
+
   numRead = element->GetVectorAttribute("resolution",
                                         MAX_NUM,
                                         values);
@@ -391,6 +392,13 @@ int vtkSMIntRangeDomain::ReadXMLAttributes(vtkSMProperty* prop, vtkPVXMLElement*
 //---------------------------------------------------------------------------
 void vtkSMIntRangeDomain::Update(vtkSMProperty* prop)
 {
+  if (prop == NULL)
+    {
+    // if prop is null, check if we have a "RequiredProperties" specified and
+    // use that.
+    prop = this->GetRequiredProperty("Range");
+    }
+
   vtkSMIntVectorProperty* ivp = vtkSMIntVectorProperty::SafeDownCast(prop);
   if (ivp && ivp->GetInformationOnly())
     {

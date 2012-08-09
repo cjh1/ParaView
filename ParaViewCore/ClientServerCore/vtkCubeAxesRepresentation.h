@@ -25,6 +25,7 @@
 
 class vtkCubeAxesActor;
 class vtkPVRenderView;
+class vtkOutlineSource;
 
 class VTK_EXPORT vtkCubeAxesRepresentation : public vtkPVDataRepresentation
 {
@@ -65,6 +66,23 @@ public:
   vtkGetVector3Macro(CustomBoundsActive, int);
 
   // Description:
+  // Get/Set whether to use custom range for a particular dimension.
+  vtkSetVector3Macro(CustomRangeActive, int);
+  vtkGetVector3Macro(CustomRangeActive, int);
+
+  // Description:
+  // Get/Set whether to use original data bounds as range for a particular dimension.
+  vtkSetVector3Macro(OriginalBoundsRangeActive, int);
+  vtkGetVector3Macro(OriginalBoundsRangeActive, int);
+
+  // Description:
+  // Get/Set custom range to use. When corresponding CustomRangeActive is
+  // true, the data bounds will be ignored for that direction and CustomBounds
+  // will be used instead.
+  vtkSetVector6Macro(CustomRange, double);
+  vtkGetVector6Macro(CustomRange, double);
+
+  // Description:
   // Set the actor color.
   virtual void SetColor(double r, double g, double b);
   virtual void SetColor(double rgb[3])
@@ -88,6 +106,33 @@ public:
   // Set visibility of the representation.
   virtual void SetVisibility(bool visible);
 
+  // Description:
+  // Enable/Disable the usage of the FieldData to override the XTitle value.
+  vtkSetMacro(UseDefaultXTitle,int);
+  vtkGetMacro(UseDefaultXTitle,int);
+
+  // Description:
+  // Enable/Disable the usage of the FieldData to override the YTitle value.
+  vtkSetMacro(UseDefaultYTitle,int);
+  vtkGetMacro(UseDefaultYTitle,int);
+
+  // Description:
+  // Enable/Disable the usage of the FieldData to override the ZTitle value.
+  vtkSetMacro(UseDefaultZTitle,int);
+  vtkGetMacro(UseDefaultZTitle,int);
+
+  // Description:
+  // Set the user defined title that could be use it UseDefaultXTitle=0
+  virtual void SetXTitle(const char* val);
+
+  // Description:
+  // Set the user defined title that could be use it UseDefaultYTitle=0
+  virtual void SetYTitle(const char* val);
+
+  // Description:
+  // Set the user defined title that could be use it UseDefaultZTitle=0
+  virtual void SetZTitle(const char* val);
+
   //***************************************************************************
   // Forwarded to internal vtkCubeAxesActor
   virtual void SetFlyMode(int val);
@@ -95,23 +140,22 @@ public:
   virtual void SetCornerOffset(double val);
   virtual void SetTickLocation(int val);
 
-  virtual void SetXTitle(const char* val);
   virtual void SetXAxisVisibility(int val);
   virtual void SetXAxisTickVisibility(int val);
   virtual void SetXAxisMinorTickVisibility(int val);
   virtual void SetDrawXGridlines(int val);
 
   virtual void SetYAxisVisibility(int val);
-  virtual void SetYTitle(const char* val);
   virtual void SetYAxisTickVisibility(int val);
   virtual void SetYAxisMinorTickVisibility(int val);
   virtual void SetDrawYGridlines(int val);
 
   virtual void SetZAxisVisibility(int val);
-  virtual void SetZTitle(const char* val);
   virtual void SetZAxisTickVisibility(int val);
   virtual void SetZAxisMinorTickVisibility(int val);
   virtual void SetDrawZGridlines(int val);
+
+  virtual void SetGridLineLocation(int val);
 //BTX
 protected:
   vtkCubeAxesRepresentation();
@@ -135,15 +179,29 @@ protected:
   // Returns true if the removal succeeds.
   virtual bool RemoveFromView(vtkView* view);
 
+  vtkOutlineSource* OutlineSource;
   vtkWeakPointer<vtkPVRenderView> View;
-  vtkTimeStamp BoundsUpdateTime;
   vtkCubeAxesActor* CubeAxesActor;
   double Position[3];
   double Scale[3];
   double Orientation[3];
   double CustomBounds[6];
   int CustomBoundsActive[3];
+  int OriginalBoundsRangeActive[3];
+  double CustomRange[6];
+  int CustomRangeActive[3];
   double DataBounds[6];
+  bool UseOrientedBounds;
+  int UseDefaultXTitle;
+  int UseDefaultYTitle;
+  int UseDefaultZTitle;
+  char* UserXTitle;
+  char* UserYTitle;
+  char* UserZTitle;
+
+  vtkSetStringMacro(UserXTitle);
+  vtkSetStringMacro(UserYTitle);
+  vtkSetStringMacro(UserZTitle);
 private:
   vtkCubeAxesRepresentation(const vtkCubeAxesRepresentation&); // Not implemented
   void operator=(const vtkCubeAxesRepresentation&); // Not implemented

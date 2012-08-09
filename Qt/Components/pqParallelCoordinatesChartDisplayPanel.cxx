@@ -59,7 +59,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqSMAdaptor.h"
 #include "pqView.h"
 #include "pqDataRepresentation.h"
-#include "pqParallelCoordinatesSettingsModel.h"
+#include "pqChartSeriesSettingsModel.h"
 
 #include <assert.h>
 
@@ -85,7 +85,7 @@ public:
     }
 
   vtkWeakPointer<vtkSMParallelCoordinatesRepresentationProxy> ChartRepresentation;
-  pqParallelCoordinatesSettingsModel* SettingsModel;
+  pqChartSeriesSettingsModel* SettingsModel;
   pqComboBoxDomain* XAxisArrayDomain;
   pqSignalAdaptorComboBox* XAxisArrayAdaptor;
   pqPropertyLinks Links;
@@ -102,8 +102,12 @@ pqParallelCoordinatesChartDisplayPanel::pqParallelCoordinatesChartDisplayPanel(
   this->Internal = new pqParallelCoordinatesChartDisplayPanel::pqInternal();
   this->Internal->setupUi(this);
 
-  this->Internal->SettingsModel = new pqParallelCoordinatesSettingsModel(this);
+  this->Internal->SettingsModel = new pqChartSeriesSettingsModel(this);
   this->Internal->SeriesList->setModel(this->Internal->SettingsModel);
+
+  QObject::connect(this->Internal->SeriesList->header(),
+                   SIGNAL(checkStateChanged()),
+                   this, SLOT(headerCheckStateChanged()));
 
   QObject::connect(
     this->Internal->SeriesList, SIGNAL(activated(const QModelIndex &)),
@@ -147,6 +151,7 @@ void pqParallelCoordinatesChartDisplayPanel::reloadSeries()
 {
   this->updateAllViews();
   this->updateOptionsWidgets();
+  this->Internal->SettingsModel->reload();
 }
 
 //-----------------------------------------------------------------------------
@@ -166,7 +171,7 @@ void pqParallelCoordinatesChartDisplayPanel::setDisplay(pqRepresentation* disp)
 
   // this is essential to ensure that when you undo-redo, the representation is
   // indeed update-to-date, thus ensuring correct domains etc.
-  proxy->UpdatePipeline();
+  // proxy->UpdatePipeline();
 
   // The model for the plot settings
   this->Internal->SettingsModel->setRepresentation(
@@ -184,6 +189,8 @@ void pqParallelCoordinatesChartDisplayPanel::setDisplay(pqRepresentation* disp)
     proxy, proxy->GetProperty("CompositeDataSetIndex"));
 
   this->setEnabled(true);
+
+  QObject::connect(disp, SIGNAL(dataUpdated()), this, SLOT(reloadSeries()));
 
   this->reloadSeries();
 }
@@ -280,4 +287,27 @@ Qt::CheckState pqParallelCoordinatesChartDisplayPanel::getEnabledState() const
   Qt::CheckState enabledState = Qt::Unchecked;
 
   return enabledState;
+}
+
+//-----------------------------------------------------------------------------
+void pqParallelCoordinatesChartDisplayPanel::headerCheckStateChanged()
+{
+  // get current check state/
+  QHeaderView* header = this->Internal->SeriesList->header();
+  QAbstractItemModel* headerModel = header->model();
+  bool checkable = false;
+  int cs = headerModel->headerData(0, header->orientation(),
+                                   Qt::CheckStateRole).toInt(&checkable);
+  if (checkable)
+    {
+    if (cs ==  Qt::Checked)
+      {
+      cs = Qt::Unchecked;
+      }
+    else
+      {
+      cs = Qt::Checked;
+      }
+    headerModel->setHeaderData(0, header->orientation(), cs, Qt::CheckStateRole);
+    }
 }

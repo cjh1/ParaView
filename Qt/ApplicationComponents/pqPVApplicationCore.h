@@ -90,8 +90,14 @@ public:
 public slots:
   /// Pops-up the quick launch dialog.
   void quickLaunch();
+  /// Pops-up the search dialog if the focused widget is
+  /// QAsbstractItemView type.
+  void startSearch();
 
 protected:
+  /// Override event filter in order to catch file association mechanism
+  virtual bool eventFilter ( QObject * obj, QEvent * event );
+
   QPointer<pqSelectionManager> SelectionManager;
   QPointer<pqAnimationManager> AnimationManager;
   QPointer<pqApplyPropertiesManager> ApplyPropertiesManger;

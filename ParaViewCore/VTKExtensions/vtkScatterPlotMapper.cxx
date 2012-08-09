@@ -51,11 +51,12 @@
 #include "vtkStreamingDemandDrivenPipeline.h"
 #include "vtkTimerLog.h"
 #include "vtkTransform.h"
+#include "vtkTrivialProducer.h"
 #include "vtkgl.h"
 
-#include <vtkstd/vector>
+#include <vector>
 #include <vtksys/ios/sstream>
-#include <vtkstd/string>
+#include <string>
 #include <assert.h>
 
 //#define PI 3.141592653589793
@@ -236,15 +237,15 @@ void vtkScatterPlotMapper::SetArrayByPointCoord(ArrayIndex idx,
 
 void vtkScatterPlotMapper::SetArrayByName(ArrayIndex idx, const char* arrayName)
 {
-  vtkstd::string array(arrayName);
+  std::string array(arrayName);
   
   // Skip delimiters at beginning.
-  vtkstd::string::size_type lastPos = array.find_first_not_of(',', 0);
+  std::string::size_type lastPos = array.find_first_not_of(',', 0);
   // Find first "non-delimiter".
-  vtkstd::string::size_type pos = array.find_first_of(',', lastPos);
-  vtkstd::vector<vtkstd::string> tokens;
+  std::string::size_type pos = array.find_first_of(',', lastPos);
+  std::vector<std::string> tokens;
 
-  while (vtkstd::string::npos != pos || vtkstd::string::npos != lastPos)
+  while (std::string::npos != pos || std::string::npos != lastPos)
     {
     // Found a token, add it to the vector.
     tokens.push_back(array.substr(lastPos, pos - lastPos));
@@ -254,9 +255,9 @@ void vtkScatterPlotMapper::SetArrayByName(ArrayIndex idx, const char* arrayName)
     pos = array.find_first_of(',', lastPos);
     }
   
-  vtkstd::string arrayString = "";
-  vtkstd::string arrayType = "";
-  vtkstd::string arrayComponent = "";
+  std::string arrayString = "";
+  std::string arrayType = "";
+  std::string arrayComponent = "";
   switch(tokens.size())
     {
     case 0:
@@ -279,12 +280,12 @@ void vtkScatterPlotMapper::SetArrayByName(ArrayIndex idx, const char* arrayName)
   if(arrayComponent.empty())
     {
     array = arrayString;
-    vtkstd::size_t startParenthesis = array.find('(');
+    std::size_t startParenthesis = array.find('(');
     arrayString = array.substr(0, startParenthesis);
-    if(startParenthesis != vtkstd::string::npos)
+    if(startParenthesis != std::string::npos)
       {
-      vtkstd::size_t endParenthesis = array.find(')',arrayString.length());
-      if( endParenthesis != vtkstd::string::npos)
+      std::size_t endParenthesis = array.find(')',arrayString.length());
+      if( endParenthesis != std::string::npos)
         {
         vtksys_ios::stringstream componentString;
         componentString << 
@@ -481,7 +482,7 @@ void vtkScatterPlotMapper::ComputeBounds()
     return;
     }
 
-  input->Update();
+  this->Update();
 
   // We do have hierarchical data - so we need to loop over
   // it and get the total bounds.
@@ -766,7 +767,7 @@ void vtkScatterPlotMapper::InitGlyphMappers(vtkRenderer* ren, vtkActor* actor,
     if (ss == 0)
       {
       ss = vtkPolyData::New();
-      polyDataMapper->SetInput(ss);
+      polyDataMapper->SetInputData(ss);
       ss->Delete();
       ss->ShallowCopy(source);      
       }
@@ -808,8 +809,10 @@ void vtkScatterPlotMapper::GenerateDefaultGlyphs()
   defaultSource->SetPoints(defaultPoints);
 
   defaultSource->InsertNextCell(VTK_POLY_LINE, 4, defaultPointIds);
-  defaultSource->SetUpdateExtent(0, 1, 0);
-  this->AddGlyphSourceConnection(defaultSource->GetProducerPort());
+  vtkSmartPointer<vtkTrivialProducer> triangleProducer =
+    vtkSmartPointer<vtkTrivialProducer>::New();
+  triangleProducer->SetOutput(defaultSource);
+  this->AddGlyphSourceConnection(triangleProducer->GetOutputPort());
   defaultSource->Delete();
   defaultPoints->Delete();
 
@@ -825,12 +828,14 @@ void vtkScatterPlotMapper::GenerateDefaultGlyphs()
   defaultPoints->InsertNextPoint(-0.1, -0.1, 0);
   defaultSource->SetPoints(defaultPoints);
   defaultSource->InsertNextCell(VTK_POLY_LINE, 5, defaultPointIds);
-  defaultSource->SetUpdateExtent(0, 1, 0);
-  this->AddGlyphSourceConnection(defaultSource->GetProducerPort());
+  vtkSmartPointer<vtkTrivialProducer> squareProducer =
+    vtkSmartPointer<vtkTrivialProducer>::New();
+  squareProducer->SetOutput(defaultSource);
+  this->AddGlyphSourceConnection(squareProducer->GetOutputPort());
   defaultSource->Delete();
   defaultPoints->Delete();
 
-  // pentagone
+  // pentagon
   defaultSource = vtkPolyData::New();
   defaultPoints = vtkPoints::New();
   defaultSource->Allocate();
@@ -849,8 +854,10 @@ void vtkScatterPlotMapper::GenerateDefaultGlyphs()
   defaultPoints->InsertNextPoint(0.0, 0.1, 0);
   defaultSource->SetPoints(defaultPoints);
   defaultSource->InsertNextCell(VTK_POLY_LINE, 11, defaultPointIds);
-  defaultSource->SetUpdateExtent(0, 1, 0);
-  this->AddGlyphSourceConnection(defaultSource->GetProducerPort());
+  vtkSmartPointer<vtkTrivialProducer> pentagonProducer =
+    vtkSmartPointer<vtkTrivialProducer>::New();
+  pentagonProducer->SetOutput(defaultSource);
+  this->AddGlyphSourceConnection(pentagonProducer->GetOutputPort());
   defaultSource->Delete();
   defaultPoints->Delete();
 
@@ -868,8 +875,10 @@ void vtkScatterPlotMapper::GenerateDefaultGlyphs()
     }
   defaultSource->SetPoints(defaultPoints);
   defaultSource->InsertNextCell(VTK_POLY_LINE, points + 1, defaultPointIds);
-  defaultSource->SetUpdateExtent(0, 1, 0);
-  this->AddGlyphSourceConnection(defaultSource->GetProducerPort());
+  vtkSmartPointer<vtkTrivialProducer> circleProducer =
+    vtkSmartPointer<vtkTrivialProducer>::New();
+  circleProducer->SetOutput(defaultSource);
+  this->AddGlyphSourceConnection(circleProducer->GetOutputPort());
   defaultSource->Delete();
   defaultPoints->Delete();
 

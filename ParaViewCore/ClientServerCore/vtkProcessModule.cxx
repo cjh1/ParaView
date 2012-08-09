@@ -29,11 +29,11 @@
 #include "vtkPVOptions.h"
 #include "vtkSessionIterator.h"
 #include "vtkTCPNetworkAccessManager.h"
-#include "vtkToolkits.h"
+#include "vtkPVConfig.h"
 
 #include <vtksys/SystemTools.hxx>
 
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
 # include "vtkMPIController.h"
 # include "vtkPVMPICommunicator.h"
 # include <mpi.h>
@@ -60,7 +60,7 @@ bool vtkProcessModule::Initialize(ProcessTypes type, int &argc, char** &argv)
 
   vtkProcessModule::GlobalController = vtkSmartPointer<vtkDummyController>::New();
 
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
   bool use_mpi = (type != PROCESS_CLIENT);
   // initialize MPI only on non-client processes.
   if (use_mpi)
@@ -71,7 +71,7 @@ bool vtkProcessModule::Initialize(ProcessTypes type, int &argc, char** &argv)
       {
       // MPICH changes the current working directory after MPI_Init. We fix that
       // by changing the CWD back to the original one after MPI_Init.
-      vtkstd::string cwd = vtksys::SystemTools::GetCurrentWorkingDirectory(true);
+      std::string cwd = vtksys::SystemTools::GetCurrentWorkingDirectory(true);
 
       // This is here to avoid false leak messages from vtkDebugLeaks when
       // using mpich. It appears that the root process which spawns all the
@@ -101,11 +101,11 @@ bool vtkProcessModule::Initialize(ProcessTypes type, int &argc, char** &argv)
 #else
   static_cast<void>(argc); // unused warning when MPI is off
   static_cast<void>(argv); // unused warning when MPI is off
-#endif // VTK_USE_MPI
+#endif // PARAVIEW_USE_MPI
   vtkMultiProcessController::SetGlobalController(
     vtkProcessModule::GlobalController);
 
-#ifdef VTK_USE_X
+#ifdef PARAVIEW_USE_X
   // Hack to support -display parameter.  vtkPVOptions requires parameters to be
   // specified as -option=value, but it is generally expected that X window
   // programs allow you to set the display as -display host:port (i.e. without
@@ -182,6 +182,10 @@ bool vtkProcessModule::Finalize()
 {
   if(vtkProcessModule::Singleton)
     {
+    // Make sure no session are kept inside ProcessModule so SessionProxyManager
+    // could cleanup their Proxies before the ProcessModule get deleted.
+    vtkProcessModule::Singleton->Internals->Sessions.clear();
+
     vtkProcessModule::Singleton->InvokeEvent(vtkCommand::ExitEvent);
     }
 
@@ -195,7 +199,7 @@ bool vtkProcessModule::Finalize()
   vtkProcessModule::GlobalController->Finalize(/*finalizedExternally*/1);
   vtkProcessModule::GlobalController = NULL;
 
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
   if (vtkProcessModule::FinalizeMPI)
     {
     MPI_Barrier(MPI_COMM_WORLD);
@@ -210,6 +214,17 @@ bool vtkProcessModule::Finalize()
 vtkProcessModule::ProcessTypes vtkProcessModule::GetProcessType()
 {
   return vtkProcessModule::ProcessType;
+}
+
+//----------------------------------------------------------------------------
+void vtkProcessModule::UpdateProcessType(ProcessTypes newType, bool dontKnowWhatImDoing/*=true*/)
+{
+  if(dontKnowWhatImDoing)
+    {
+    vtkWarningMacro("UpdateProcessType from "
+                    << vtkProcessModule::ProcessType << " to " << newType);
+    }
+  vtkProcessModule::ProcessType = newType;
 }
 
 //----------------------------------------------------------------------------
@@ -228,10 +243,11 @@ vtkProcessModule::vtkProcessModule()
 {
   this->NetworkAccessManager = vtkTCPNetworkAccessManager::New();
   this->Options = 0;
-  this->Internals = new vtkInternals();
+  this->Internals = new vtkProcessModuleInternals();
   this->MaxSessionId = 0;
   this->ReportInterpreterErrors = true;
   this->SymmetricMPIMode = false;
+  this->MultipleSessionsSupport = false; // Set MULTI-SERVER to false as DEFAULT
 
   vtkCompositeDataPipeline* cddp = vtkCompositeDataPipeline::New();
   vtkAlgorithm::SetDefaultExecutivePrototype(cddp);
@@ -266,7 +282,7 @@ vtkIdType vtkProcessModule::RegisterSession(vtkSession* session)
 //----------------------------------------------------------------------------
 bool vtkProcessModule::UnRegisterSession(vtkIdType sessionID)
 {
-  vtkInternals::MapOfSessions::iterator iter =
+  vtkProcessModuleInternals::MapOfSessions::iterator iter =
     this->Internals->Sessions.find(sessionID);
   if (iter != this->Internals->Sessions.end())
     {
@@ -283,7 +299,7 @@ bool vtkProcessModule::UnRegisterSession(vtkIdType sessionID)
 //----------------------------------------------------------------------------
 bool vtkProcessModule::UnRegisterSession(vtkSession* session)
 {
-  vtkInternals::MapOfSessions::iterator iter;
+  vtkProcessModuleInternals::MapOfSessions::iterator iter;
   for (iter = this->Internals->Sessions.begin();
     iter != this->Internals->Sessions.end(); ++iter)
     {
@@ -303,7 +319,7 @@ bool vtkProcessModule::UnRegisterSession(vtkSession* session)
 //----------------------------------------------------------------------------
 vtkSession* vtkProcessModule::GetSession(vtkIdType sessionID)
 {
-  vtkInternals::MapOfSessions::iterator iter =
+  vtkProcessModuleInternals::MapOfSessions::iterator iter =
     this->Internals->Sessions.find(sessionID);
   if (iter != this->Internals->Sessions.end())
     {
@@ -316,7 +332,7 @@ vtkSession* vtkProcessModule::GetSession(vtkIdType sessionID)
 //----------------------------------------------------------------------------
 vtkIdType vtkProcessModule::GetSessionID(vtkSession* session)
 {
-  vtkInternals::MapOfSessions::iterator iter;
+  vtkProcessModuleInternals::MapOfSessions::iterator iter;
   for (iter = this->Internals->Sessions.begin();
     iter != this->Internals->Sessions.end(); ++iter)
     {
@@ -395,7 +411,7 @@ vtkSession* vtkProcessModule::GetSession()
     return activeSession;
     }
 
-  vtkInternals::MapOfSessions::iterator iter;
+  vtkProcessModuleInternals::MapOfSessions::iterator iter;
   iter = this->Internals->Sessions.begin();
   return (iter != this->Internals->Sessions.end()?
     iter->second.GetPointer() : NULL);

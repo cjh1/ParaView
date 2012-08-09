@@ -132,9 +132,11 @@ class vtkSMLoadStateContext;
 class vtkPVXMLElement;
 class vtkSMDocumentation;
 class vtkSMProperty;
+class vtkSMPropertyGroup;
 class vtkSMPropertyIterator;
 class vtkSMProxyLocator;
 class vtkSMProxyManager;
+class vtkSMSessionProxyManager;
 class vtkSMProxyObserver;
 
 class VTK_EXPORT vtkSMProxy : public vtkSMRemoteObject
@@ -453,6 +455,14 @@ public:
   // invalid state when property refere to a sub-proxy that does not exist yet.
   virtual void LoadState( const vtkSMMessage* msg, vtkSMProxyLocator* locator);
 
+  // Description:
+  // Returns the property group at \p index for the proxy.
+  vtkSMPropertyGroup* GetPropertyGroup(size_t index) const;
+
+  // Description:
+  // Returns the number of property groups that the proxy contains.
+  size_t GetNumberOfPropertyGroups() const;
+
 protected:
   vtkSMProxy();
   ~vtkSMProxy();
@@ -499,7 +509,7 @@ protected:
   friend class vtkSMProperty;
   friend class vtkSMPropertyIterator;
   friend class vtkSMNamedPropertyIterator;
-  friend class vtkSMProxyManager;
+  friend class vtkSMSessionProxyManager;
   friend class vtkSMProxyObserver;
   friend class vtkSMProxyProperty;
   friend class vtkSMProxyRegisterUndoElement;
@@ -508,6 +518,7 @@ protected:
   friend class vtkSMUndoRedoStateLoader;
   friend class vtkSMDeserializerProtobuf;
   friend class vtkSMStateLocator;
+  friend class vtkSMMultiServerSourceProxy;
 
   // Description:
   // Assigned by the XML parser. The name assigned in the XML
@@ -654,7 +665,7 @@ protected:
 
   // Description:
   // Read attributes from an XML element.
-  virtual int ReadXMLAttributes(vtkSMProxyManager* pm, vtkPVXMLElement* element);
+  virtual int ReadXMLAttributes(vtkSMSessionProxyManager* pm, vtkPVXMLElement* element);
   void SetupExposedProperties(const char* subproxy_name, vtkPVXMLElement *element);
   void SetupSharedProperties(vtkSMProxy* subproxy, vtkPVXMLElement *element);
 
@@ -671,7 +682,7 @@ protected:
   // Handle events fired by subproxies.
   virtual void ExecuteSubProxyEvent(vtkSMProxy* o, unsigned long event, void* data);
 
-  virtual int CreateSubProxiesAndProperties(vtkSMProxyManager* pm,
+  virtual int CreateSubProxiesAndProperties(vtkSMSessionProxyManager* pm,
     vtkPVXMLElement *element);
 
   // Description:
@@ -732,6 +743,10 @@ protected:
   vtkSMProxyObserver* SubProxyObserver;
   vtkSMProxy(const vtkSMProxy&); // Not implemented
   void operator=(const vtkSMProxy&); // Not implemented
+
+private:
+  vtkSMProperty* SetupExposedProperty(vtkPVXMLElement* propertyElement,
+                                      const char* subproxy_name);
 //ETX
 };
 

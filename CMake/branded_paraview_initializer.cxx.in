@@ -42,7 +42,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "@BPC_PVMAIN_WINDOW_INCLUDE@"
 #include "pqPVApplicationCore.h"
-#include "pqViewManager.h"
 #include "pqBrandPluginsLoader.h"
 #include "pqOptions.h"
 #include "pqSettings.h"
@@ -75,6 +74,10 @@ pq@BPC_NAME@Initializer::~pq@BPC_NAME@Initializer()
 bool pq@BPC_NAME@Initializer::Initialize(int argc, char* argv[])
 {
   this->PVApp = new pqPVApplicationCore (argc, argv);
+
+  // Attach custom event filter
+  QApplication::instance()->installEventFilter(this->PVApp);
+
   if (this->PVApp->getOptions()->GetHelpSelected() ||
       this->PVApp->getOptions()->GetUnknownArgument() ||
       this->PVApp->getOptions()->GetErrorMessage() ||

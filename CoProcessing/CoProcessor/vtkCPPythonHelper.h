@@ -31,7 +31,7 @@ public:
   void PrintSelf(ostream& os, vtkIndent indent);
 
   /// Get the interpretor that has been setup.
-  vtkPVPythonInterpretor* GetPythonInterpretor();
+  static vtkPVPythonInterpretor* GetPythonInterpretor();
 
 protected:
   vtkCPPythonHelper();

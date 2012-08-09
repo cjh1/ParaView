@@ -47,11 +47,14 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkSMNewWidgetRepresentationProxy.h"
 #include "vtkSMPropertyHelper.h"
 #include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMRenderViewProxy.h"
 #include "vtkSMSelectionHelper.h"
 #include "vtkSMSourceProxy.h"
 #include "vtkSMStringVectorProperty.h"
 #include "vtkUnstructuredGrid.h"
+
+#include <assert.h>
 
 #include <QHeaderView>
 #include <QItemDelegate>
@@ -74,7 +77,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqSelectionManager.h"
 #include "pqServer.h"
 #include "pqServerManagerModel.h"
-#include "pqServerManagerSelectionModel.h"
 #include "pqSettings.h"
 #include "pqSignalAdaptorCompositeTreeWidget.h"
 #include "pqSignalAdaptors.h"
@@ -641,13 +643,19 @@ void pqSelectionInspectorPanel::updateSelectionGUI()
     SIGNAL(currentTextChanged(const QString&)),
     selSource, selSource->GetProperty("FieldType"));
 
-  this->Implementation->SelectionLinks->addPropertyLink(
-    this->Implementation->checkboxContainCell, "checked", SIGNAL(toggled(bool)),
-    selSource, selSource->GetProperty("ContainingCells"));
+  if (selSource->GetProperty("ContainingCells"))
+    {
+    this->Implementation->SelectionLinks->addPropertyLink(
+      this->Implementation->checkboxContainCell, "checked", SIGNAL(toggled(bool)),
+      selSource, selSource->GetProperty("ContainingCells"));
+    }
 
-  this->Implementation->SelectionLinks->addPropertyLink(
-    this->Implementation->checkboxInsideOut, "checked", SIGNAL(toggled(bool)),
-    selSource, selSource->GetProperty("InsideOut"));
+  if (selSource->GetProperty("InsideOut"))
+    {
+    this->Implementation->SelectionLinks->addPropertyLink(
+      this->Implementation->checkboxInsideOut, "checked", SIGNAL(toggled(bool)),
+      selSource, selSource->GetProperty("InsideOut"));
+    }
 
   if (selSource->GetProperty("IDs"))
     {
@@ -1361,6 +1369,7 @@ void pqSelectionInspectorPanel::onActiveViewChanged(pqView* view)
   this->Implementation->ActiveView = renView;
 
   // update the frustum widget.
+  // FIXME:TIMER
   QTimer::singleShot(10, this, SLOT(updateFrustum()));
 
   // Update the "Display Style" GUI since it shows the representation in the
@@ -1748,7 +1757,8 @@ void pqSelectionInspectorPanel::updateFrustumInternal(bool showFrustum)
 
   if (!this->Implementation->FrustumWidget)
     {
-    vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
+    assert("Active view should be valid" && this->Implementation->ActiveView);
+    vtkSMSessionProxyManager* pxm = this->Implementation->ActiveView->proxyManager();
     vtkSMProxy* repr = pxm->NewProxy("representations", "FrustumWidget");
     this->Implementation->FrustumWidget.TakeReference(repr);
     repr->UpdateVTKObjects();

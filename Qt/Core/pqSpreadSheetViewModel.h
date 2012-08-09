@@ -106,6 +106,12 @@ public:
   /// Return true only if the given column is sortable.
   bool isSortable(int section);
 
+  /// Return true only if the given column is visible
+  bool isVisible(int section);
+
+  /// Set the visibility of a given column
+  void setVisible(int section, bool visible);
+
   /// Returns the field type for the data currently shown by this model.
   int getFieldType() const;
 
@@ -131,6 +137,9 @@ public:
   pqDataRepresentation* activeRepresentation() const;
   vtkSMProxy* activeRepresentationProxy() const;
 
+  /// Method needed for copy/past cell editor
+  virtual Qt::ItemFlags flags ( const QModelIndex & index ) const;
+  virtual bool setData ( const QModelIndex & index, const QVariant & value, int role = Qt::EditRole );
 public slots:
   /// resets the model.
   void forceUpdate();

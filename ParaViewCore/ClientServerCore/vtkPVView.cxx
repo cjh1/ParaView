@@ -16,35 +16,87 @@
 
 #include "vtkCacheSizeKeeper.h"
 #include "vtkInformation.h"
+#include "vtkInformationObjectBaseKey.h"
 #include "vtkInformationRequestKey.h"
 #include "vtkInformationVector.h"
 #include "vtkObjectFactory.h"
+#include "vtkProcessModule.h"
 #include "vtkPVDataRepresentation.h"
+#include "vtkPVSession.h"
 #include "vtkPVSynchronizedRenderWindows.h"
 #include "vtkTimerLog.h"
 
 #include <assert.h>
+#include <map>
 
-vtkWeakPointer<vtkPVSynchronizedRenderWindows> vtkPVView::SingletonSynchronizedWindows;
 
-vtkInformationKeyMacro(vtkPVView, REQUEST_UPDATE, Request);
-vtkInformationKeyMacro(vtkPVView, REQUEST_INFORMATION, Request);
-vtkInformationKeyMacro(vtkPVView, REQUEST_PREPARE_FOR_RENDER, Request);
+class vtkPVView::vtkInternals
+{
+private:
+  typedef std::map<vtkPVSession*,
+    vtkWeakPointer<vtkPVSynchronizedRenderWindows> > MapOfSynchronizedWindows;
+  static MapOfSynchronizedWindows SynchronizedWindows;
+public:
+  static vtkPVSynchronizedRenderWindows* NewSynchronizedWindows(
+    vtkPVSession* session)
+    {
+    vtkPVSynchronizedRenderWindows* srw =
+      vtkInternals::SynchronizedWindows[session].GetPointer();
+    if (srw == NULL)
+      {
+      srw = vtkPVSynchronizedRenderWindows::New(session);
+      vtkInternals::SynchronizedWindows[session] = srw;
+      return srw;
+      }
+    else
+      {
+      srw->Register(NULL);
+      return srw;
+      }
+    }
+};
+
+vtkPVView::vtkInternals::MapOfSynchronizedWindows
+vtkPVView::vtkInternals::SynchronizedWindows;
+
 vtkInformationKeyMacro(vtkPVView, REQUEST_RENDER, Request);
-vtkInformationKeyMacro(vtkPVView, REQUEST_DELIVERY, Request);
+vtkInformationKeyMacro(vtkPVView, REQUEST_UPDATE_LOD, Request);
+vtkInformationKeyMacro(vtkPVView, REQUEST_UPDATE, Request);
+vtkInformationKeyRestrictedMacro(vtkPVView, VIEW, ObjectBase, "vtkPVView");
+
+bool vtkPVView::EnableStreaming = false; 
+//----------------------------------------------------------------------------
+void vtkPVView::SetEnableStreaming(bool val)
+{
+  vtkPVView::EnableStreaming = val;
+}
+
+//----------------------------------------------------------------------------
+bool vtkPVView::GetEnableStreaming()
+{
+  return vtkPVView::EnableStreaming;
+}
+
 //----------------------------------------------------------------------------
 vtkPVView::vtkPVView()
 {
-  if (vtkPVView::SingletonSynchronizedWindows == NULL)
+  // Ensure vtkProcessModule is setup correctly.
+  vtkProcessModule* pm = vtkProcessModule::GetProcessModule();
+  if (!pm)
     {
-    this->SynchronizedWindows = vtkPVSynchronizedRenderWindows::New();
-    vtkPVView::SingletonSynchronizedWindows = this->SynchronizedWindows;
+    vtkErrorMacro("vtkProcessModule not initialized. Aborting.");
+    abort();
     }
-  else
+
+  vtkPVSession* activeSession = vtkPVSession::SafeDownCast(pm->GetActiveSession());
+  if (!activeSession)
     {
-    this->SynchronizedWindows = vtkPVView::SingletonSynchronizedWindows;
-    this->SynchronizedWindows->Register(this);
+    vtkErrorMacro("Could not find any active session. Aborting.");
+    abort();
     }
+
+  this->SynchronizedWindows =
+    vtkInternals::NewSynchronizedWindows(activeSession);
   this->Identifier = 0;
   this->ViewTime = 0.0;
   this->CacheKey = 0.0;
@@ -125,7 +177,7 @@ void vtkPVView::SetViewTime(double time)
 bool vtkPVView::InTileDisplayMode()
 {
   int temp[2];
-  return vtkPVSynchronizedRenderWindows::GetTileDisplayParameters(temp, temp);
+  return this->SynchronizedWindows->GetTileDisplayParameters(temp, temp);
 }
 
 //----------------------------------------------------------------------------
@@ -227,6 +279,11 @@ void vtkPVView::CallProcessViewRequest(
         }
       }
     }
+
+  // NOTE: This will create a reference loop (depending on what inInfo is). If
+  // it's this->RequestInformation, then we have a loop and hence it's
+  // essential to call vtkInformation::Clear() before this method returns.
+  inInfo->Set(VIEW(), this);
 
   for (int cc=0; cc < num_reprs; cc++)
     {

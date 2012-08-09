@@ -34,15 +34,17 @@
 #include "vtkDataSetSurfaceFilter.h"
 #include "vtkDepthPeelingPass.h"
 #include "vtkDistributedDataFilter.h"
+#include "vtkFrameBufferObject.h"
 #include "vtkGaussianBlurPass.h"
 #include "vtkIceTCompositePass.h"
 #include "vtkImageRenderManager.h"
 #include "vtkLightsPass.h"
 #include "vtkMPIController.h"
+#include "vtkObjectFactory.h"
 #include "vtkOpaquePass.h"
+#include "vtkOpenGLRenderer.h"
 #include "vtkOpenGLRenderWindow.h"
 #include "vtkOverlayPass.h"
-#include "vtkParallelFactory.h"
 #include "vtkPieceScalars.h"
 #include "vtkPKdTree.h"
 #include "vtkPlaneSource.h"
@@ -95,7 +97,7 @@ class MyProcess : public vtkProcess
   bool DepthOnly;
 public:
   static MyProcess *New();
-  vtkTypeRevisionMacro(MyProcess, vtkProcess);
+  vtkTypeMacro(MyProcess, vtkProcess);
 
   vtkSetVector2Macro(TileDimensions, int);
   vtkGetVector2Macro(TileDimensions, int);
@@ -135,7 +137,6 @@ protected:
   bool ServerMode;
 };
 
-vtkCxxRevisionMacro(MyProcess, "$Revision$");
 vtkStandardNewMacro(MyProcess);
 
 //-----------------------------------------------------------------------------
@@ -306,13 +307,14 @@ void MyProcess::SetupRenderPasses(vtkRenderer* renderer)
   cameraP->SetAspectRatioOverride(
     (double)this->TileDimensions[0] / this->TileDimensions[1]);
 
-  renderer->SetPass(cameraP);
+  vtkOpenGLRenderer *glrenderer = vtkOpenGLRenderer::SafeDownCast(renderer);
+  glrenderer->SetPass(cameraP);
 
   if (this->UseBlurPass)
     {
     vtkGaussianBlurPass* blurPass = vtkGaussianBlurPass::New();
-    blurPass->SetDelegatePass(renderer->GetPass());
-    renderer->SetPass(blurPass);
+    blurPass->SetDelegatePass(glrenderer->GetPass());
+    glrenderer->SetPass(blurPass);
     blurPass->Delete();
     }
 
@@ -320,8 +322,8 @@ void MyProcess::SetupRenderPasses(vtkRenderer* renderer)
     {
     vtkSobelGradientMagnitudePass *sobelPass =
       vtkSobelGradientMagnitudePass::New();
-    sobelPass->SetDelegatePass(renderer->GetPass());
-    renderer->SetPass(sobelPass);
+    sobelPass->SetDelegatePass(glrenderer->GetPass());
+    glrenderer->SetPass(sobelPass);
     sobelPass->Delete();
     }
 
@@ -344,6 +346,18 @@ void MyProcess::SetupRenderPasses(vtkRenderer* renderer)
 //-----------------------------------------------------------------------------
 void MyProcess::Execute()
 {
+  // test required extensions by creating a dummy rendering context.
+  vtkSmartPointer<vtkRenderWindow> temp =
+    vtkSmartPointer<vtkRenderWindow>::New();
+  if (!vtkFrameBufferObject::IsSupported(temp))
+    {
+    vtkWarningMacro("Rendering context doesn't support required extensions.\n"
+      "Skipping test.");
+    this->ReturnValue =vtkTesting::PASSED;
+    return;
+    }
+  temp = NULL;
+
   int myId = this->Controller->GetLocalProcessId();
 
   vtkRenderWindow* renWin = vtkRenderWindow::New();
@@ -503,9 +517,9 @@ int main(int argc, char **argv)
   int add_sobel_pass = 0;
   int depthOnly=0;
   int interactive=0;
-  vtkstd::string data;
-  vtkstd::string temp;
-  vtkstd::string baseline;
+  std::string data;
+  std::string temp;
+  std::string baseline;
 
   vtksys::CommandLineArguments args;
   args.Initialize(argc, argv);

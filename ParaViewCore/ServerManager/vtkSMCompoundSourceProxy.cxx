@@ -22,22 +22,23 @@
 #include "vtkSMOutputPort.h"
 #include "vtkSMProxyLocator.h"
 #include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 
 #include <vtkSmartPointer.h>
 
-#include <vtkstd/list>
-#include <vtkstd/vector>
+#include <list>
+#include <vector>
 
-typedef vtkstd::list<vtkSmartPointer<vtkPVXMLElement> > ElementsType;
+typedef std::list<vtkSmartPointer<vtkPVXMLElement> > ElementsType;
 //*****************************************************************************
 class vtkSMCompoundSourceProxy::vtkInternals
 {
 public:
   struct PortInfo
     {
-    vtkstd::string ProxyName;
-    vtkstd::string ExposedName;
-    vtkstd::string PortName;
+    std::string ProxyName;
+    std::string ExposedName;
+    std::string PortName;
     unsigned int PortIndex;
     PortInfo()
       {
@@ -73,7 +74,7 @@ public:
     this->ExposedPorts.push_back(info);
     }
 
-  typedef vtkstd::vector<PortInfo> VectorOfPortInfo;
+  typedef std::vector<PortInfo> VectorOfPortInfo;
   VectorOfPortInfo ExposedPorts;
 };
 //*****************************************************************************
@@ -144,6 +145,7 @@ void vtkSMCompoundSourceProxy::CreateOutputPorts()
                      << iter->ProxyName.c_str());
       continue;
       }
+    port->SetCompoundSourceProxy(this);
     this->SetOutputPort(index, iter->ExposedName.c_str(), port, doc);
 
     index++;
@@ -169,7 +171,7 @@ void vtkSMCompoundSourceProxy::CreateSelectionProxies()
   for (unsigned int cc=0; cc < numOutputs; cc++)
     {
     vtkSMOutputPort* port = this->GetOutputPort(cc);
-    vtkSMSourceProxy* source = port->GetSourceProxy();
+    vtkSMSourceProxy* source = port->SourceProxy.GetPointer();
     if (source && source != this)
       {
       source->CreateSelectionProxies();
@@ -208,7 +210,7 @@ void vtkSMCompoundSourceProxy::UpdateVTKObjects()
   this->Superclass::UpdateVTKObjects();
 }
 //----------------------------------------------------------------------------
-int vtkSMCompoundSourceProxy::ReadXMLAttributes( vtkSMProxyManager* pm,
+int vtkSMCompoundSourceProxy::ReadXMLAttributes( vtkSMSessionProxyManager* pm,
                                                  vtkPVXMLElement* element)
 {
   if (!this->Superclass::ReadXMLAttributes(pm, element))
@@ -227,7 +229,7 @@ int vtkSMCompoundSourceProxy::ReadXMLAttributes( vtkSMProxyManager* pm,
 
   // Initialise sub-proxy by registering them as sub-proxy --------------------
   int currentId;
-  vtkstd::string compoundName;
+  std::string compoundName;
   unsigned int numElems = element->GetNumberOfNestedElements();
   for (unsigned int i=0; i < numElems; i++)
     {

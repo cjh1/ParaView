@@ -152,22 +152,17 @@ protected:
 
   vtkVolumeRepresentationPreprocessor* Preprocessor;
   vtkPVCacheKeeper* CacheKeeper;
-  vtkUnstructuredDataDeliveryFilter* DeliveryFilter;
-  vtkPVUpdateSuppressor* DeliverySuppressor;
-  vtkOrderedCompositeDistributor* Distributor;
-  vtkPVUpdateSuppressor* UpdateSuppressor;
   vtkProjectedTetrahedraMapper* DefaultMapper;
   vtkVolumeProperty* Property;
   vtkPVLODVolume* Actor;
 
   vtkPVGeometryFilter* LODGeometryFilter;
-  vtkUnstructuredDataDeliveryFilter* LODDeliveryFilter;
-  vtkPVUpdateSuppressor* LODDeliverySuppressor;
-  vtkPVUpdateSuppressor* LODUpdateSuppressor;
   vtkPolyDataMapper* LODMapper;
 
   int ColorAttributeType;
   char* ColorArrayName;
+
+  double DataBounds[6];
 
 private:
   vtkUnstructuredGridVolumeRepresentation(const vtkUnstructuredGridVolumeRepresentation&); // Not implemented

@@ -11,7 +11,6 @@
 #include "vtkGeometryRepresentation.h"
 #include "vtkGeometryRepresentationWithFaces.h"
 #include "vtkGlyph3DRepresentation.h"
-#include "vtkImageSliceDataDeliveryFilter.h"
 #include "vtkImageSliceMapper.h"
 #include "vtkImageSliceRepresentation.h"
 #include "vtkImageVolumeRepresentation.h"
@@ -21,7 +20,6 @@
 #include "vtkNetworkAccessManager.h"
 #include "vtkNetworkImageSource.h"
 #include "vtkOutlineRepresentation.h"
-#include "vtkPV2DRenderView.h"
 #include "vtkPVAlgorithmPortsInformation.h"
 #include "vtkPVArrayInformation.h"
 #include "vtkPVBarChartView.h"
@@ -45,6 +43,7 @@
 #include "vtkPVDisplayInformation.h"
 #include "vtkPVEnvironmentInformation.h"
 #include "vtkPVEnvironmentInformationHelper.h"
+#include "vtkPVExtractSelection.h"
 #include "vtkPVFileInformation.h"
 #include "vtkPVFileInformationHelper.h"
 #include "vtkPVGenericAttributeInformation.h"
@@ -88,12 +87,11 @@
 #include "vtkSpreadSheetView.h"
 #include "vtkTCPNetworkAccessManager.h"
 #include "vtkTextSourceRepresentation.h"
-#include "vtkUnstructuredDataDeliveryFilter.h"
 #include "vtkUnstructuredGridVolumeRepresentation.h"
 #include "vtkXMLPVAnimationWriter.h"
 #include "vtkXYChartRepresentation.h"
 
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
 # ifdef PARAVIEW_USE_ICE_T
 #  include "vtkIceTSynchronizedRenderers.h"
 # endif
@@ -124,7 +122,6 @@ int main(int, char**)
   PRINT_SELF(vtkGeometryRepresentation);
   PRINT_SELF(vtkGeometryRepresentationWithFaces);
   PRINT_SELF(vtkGlyph3DRepresentation);
-  PRINT_SELF(vtkImageSliceDataDeliveryFilter);
   PRINT_SELF(vtkImageSliceMapper);
   PRINT_SELF(vtkImageSliceRepresentation);
   PRINT_SELF(vtkImageVolumeRepresentation);
@@ -134,7 +131,6 @@ int main(int, char**)
   PRINT_SELF(vtkNetworkAccessManager);
   PRINT_SELF(vtkNetworkImageSource);
   PRINT_SELF(vtkOutlineRepresentation);
-  //PRINT_SELF(vtkPV2DRenderView);
   PRINT_SELF(vtkPVAlgorithmPortsInformation);
   PRINT_SELF(vtkPVArrayInformation);
   //PRINT_SELF(vtkPVBarChartView);
@@ -158,6 +154,7 @@ int main(int, char**)
   PRINT_SELF(vtkPVDisplayInformation);
   PRINT_SELF(vtkPVEnvironmentInformation);
   PRINT_SELF(vtkPVEnvironmentInformationHelper);
+  PRINT_SELF(vtkPVExtractSelection);
   PRINT_SELF(vtkPVFileInformation);
   PRINT_SELF(vtkPVFileInformationHelper);
   PRINT_SELF(vtkPVGenericAttributeInformation);
@@ -201,12 +198,11 @@ int main(int, char**)
   //PRINT_SELF(vtkSpreadSheetView);
   PRINT_SELF(vtkTCPNetworkAccessManager);
   PRINT_SELF(vtkTextSourceRepresentation);
-  PRINT_SELF(vtkUnstructuredDataDeliveryFilter);
   PRINT_SELF(vtkUnstructuredGridVolumeRepresentation);
   PRINT_SELF(vtkXMLPVAnimationWriter);
   PRINT_SELF(vtkXYChartRepresentation);
 
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
 # ifdef PARAVIEW_USE_ICE_T
   PRINT_SELF(vtkIceTSynchronizedRenderers);
 # endif

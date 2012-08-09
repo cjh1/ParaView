@@ -30,25 +30,30 @@
 #include "vtkGraph.h"
 #include "vtkImageData.h"
 #include "vtkInformation.h"
+#include "vtkInstantiator.h"
 #include "vtkMath.h"
 #include "vtkMultiProcessController.h"
 #include "vtkObjectFactory.h"
 #include "vtkPointData.h"
 #include "vtkPVArrayInformation.h"
+#include "vtkPVDataInformationHelper.h"
 #include "vtkPVCompositeDataInformation.h"
 #include "vtkPVDataSetAttributesInformation.h"
 #include "vtkRectilinearGrid.h"
 #include "vtkSelection.h"
-#include "vtkSource.h"
 #include "vtkStructuredGrid.h"
 #include "vtkTable.h"
 #include "vtkUniformGrid.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
 #include "vtkMultiProcessStream.h"
 
-#include <vtkstd/vector>
+#include <vector>
+#include <map>
+#include <string>
 
 vtkStandardNewMacro(vtkPVDataInformation);
+
+std::map<std::string, std::string> helpers;
 
 //----------------------------------------------------------------------------
 vtkPVDataInformation::vtkPVDataInformation()
@@ -80,6 +85,7 @@ vtkPVDataInformation::vtkPVDataInformation()
   this->TimeSpan[1] = -VTK_DOUBLE_MAX;
   this->HasTime = 0;
   this->Time = 0.0;
+  this->TimeLabel = NULL;
 
   this->PortNumber = -1;
 }
@@ -105,6 +111,7 @@ vtkPVDataInformation::~vtkPVDataInformation()
   this->PointArrayInformation = NULL;
   this->SetDataClassName(0);
   this->SetCompositeDataClassName(0);
+  this->SetTimeLabel(NULL);
 }
 
 //----------------------------------------------------------------------------
@@ -171,6 +178,11 @@ void vtkPVDataInformation::PrintSelf(ostream& os, vtkIndent indent)
   os << indent << "TimeSpan: "
      << this->TimeSpan[0] << ", " << this->TimeSpan[1]
      << endl;
+
+  if(this->TimeLabel)
+    {
+    os << indent << "TimeLabel: " << this->TimeLabel << endl;
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -230,6 +242,7 @@ void vtkPVDataInformation::Initialize()
   this->TimeSpan[1] = -VTK_DOUBLE_MAX;
   this->HasTime = 0;
   this->Time = 0.0;
+  this->SetTimeLabel(NULL);
 }
 
 //----------------------------------------------------------------------------
@@ -283,6 +296,7 @@ void vtkPVDataInformation::DeepCopy(vtkPVDataInformation *dataInfo,
   timespan = dataInfo->GetTimeSpan();
   this->TimeSpan[0] = timespan[0];
   this->TimeSpan[1] = timespan[1];
+  this->SetTimeLabel(dataInfo->GetTimeLabel());
 }
 
 //----------------------------------------------------------------------------
@@ -348,27 +362,25 @@ void vtkPVDataInformation::CopyFromCompositeDataSet(vtkCompositeDataSet* data)
 }
 
 //----------------------------------------------------------------------------
-void vtkPVDataInformation::CopyCommonMetaData(vtkDataObject* data)
+void vtkPVDataInformation::CopyCommonMetaData(vtkDataObject* data, vtkInformation* pinfo)
 {
   // Gather some common stuff
-  vtkInformation *pinfo = data->GetPipelineInformation();
-  if (!pinfo)
-    {
-    return;
-    }
-
-  if (pinfo->Has(vtkStreamingDemandDrivenPipeline::TIME_RANGE()))
+  if (pinfo && pinfo->Has(vtkStreamingDemandDrivenPipeline::TIME_RANGE()))
     {
     double *times = pinfo->Get(vtkStreamingDemandDrivenPipeline::TIME_RANGE());
     this->TimeSpan[0] = times[0];
     this->TimeSpan[1] = times[1];
     }
 
+  this->SetTimeLabel(
+        (pinfo && pinfo->Has(vtkStreamingDemandDrivenPipeline::TIME_LABEL_ANNOTATION()))
+        ? pinfo->Get(vtkStreamingDemandDrivenPipeline::TIME_LABEL_ANNOTATION())
+        : NULL);
+
   vtkInformation *dinfo = data->GetInformation();
-  if (dinfo->Has(vtkDataObject::DATA_TIME_STEPS()) &&
-    dinfo->Length(vtkDataObject::DATA_TIME_STEPS()) == 1)
+  if (dinfo->Has(vtkDataObject::DATA_TIME_STEP()))
     {
-    double time = dinfo->Get(vtkDataObject::DATA_TIME_STEPS())[0];
+    double time = dinfo->Get(vtkDataObject::DATA_TIME_STEP());
     this->Time = time;
     this->HasTime = 1;
     }
@@ -575,7 +587,7 @@ void vtkPVDataInformation::CopyFromTable(vtkTable* data)
 void vtkPVDataInformation::CopyFromObject(vtkObject* object)
 {
   vtkDataObject* dobj = vtkDataObject::SafeDownCast(object);
-
+  vtkInformation* info = NULL;
   // Handle the case where the a vtkAlgorithmOutput is passed instead of
   // the data object. vtkSMPart uses vtkAlgorithmOutput.
   if (!dobj)
@@ -584,11 +596,17 @@ void vtkPVDataInformation::CopyFromObject(vtkObject* object)
     vtkAlgorithm* algo = vtkAlgorithm::SafeDownCast(object);
     if (algOutput && algOutput->GetProducer())
       {
+      if (strcmp(algOutput->GetProducer()->GetClassName(), "vtkPVNullSource") == 0)
+        {
+        // Don't gather any data information from the hypothetical null source.
+        return;
+        }
+
       if (algOutput->GetProducer()->IsA("vtkPVPostFilter"))
         {
         algOutput = algOutput->GetProducer()->GetInputConnection(0, 0);
         }
-
+      info = algOutput->GetProducer()->GetOutputInformation(this->PortNumber);
       dobj = algOutput->GetProducer()->GetOutputDataObject(
         algOutput->GetIndex());
       }
@@ -597,8 +615,12 @@ void vtkPVDataInformation::CopyFromObject(vtkObject* object)
       // We don't use vtkAlgorithm::GetOutputDataObject() since that call a
       // UpdateDataObject() pass, which may raise errors if the algo is not
       // fully setup yet.
-      vtkInformation* info = algo->GetExecutive()->GetOutputInformation(
-        this->PortNumber);
+      if (strcmp(algo->GetClassName(), "vtkPVNullSource") == 0)
+        {
+        // Don't gather any data information from the hypothetical null source.
+        return;
+        }
+      info = algo->GetExecutive()->GetOutputInformation(this->PortNumber);
       if (!info || vtkDataObject::GetData(info) == NULL)
         {
         return;
@@ -614,17 +636,11 @@ void vtkPVDataInformation::CopyFromObject(vtkObject* object)
     return;
     }
 
-  if (strcmp(dobj->GetProducerPort()->GetProducer()->GetClassName(), "vtkPVNullSource") == 0)
-    {
-    // Don't gather any data information from the hypothetical null source.
-    return;
-    }
-
   vtkCompositeDataSet* cds = vtkCompositeDataSet::SafeDownCast(dobj);
   if (cds)
     {
     this->CopyFromCompositeDataSet(cds);
-    this->CopyCommonMetaData(dobj);
+    this->CopyCommonMetaData(dobj, info);
     return;
     }
 
@@ -632,7 +648,7 @@ void vtkPVDataInformation::CopyFromObject(vtkObject* object)
   if (ds)
     {
     this->CopyFromDataSet(ds);
-    this->CopyCommonMetaData(dobj);
+    this->CopyCommonMetaData(dobj, info);
     return;
     }
 
@@ -640,7 +656,7 @@ void vtkPVDataInformation::CopyFromObject(vtkObject* object)
   if (ads)
     {
     this->CopyFromGenericDataSet(ads);
-    this->CopyCommonMetaData(dobj);
+    this->CopyCommonMetaData(dobj, info);
     return;
     }
 
@@ -648,7 +664,7 @@ void vtkPVDataInformation::CopyFromObject(vtkObject* object)
   if( graph)
     {
     this->CopyFromGraph(graph);
-    this->CopyCommonMetaData(dobj);
+    this->CopyCommonMetaData(dobj, info);
     return;
     }
 
@@ -656,7 +672,7 @@ void vtkPVDataInformation::CopyFromObject(vtkObject* object)
   if (table)
     {
     this->CopyFromTable(table);
-    this->CopyCommonMetaData(dobj);
+    this->CopyCommonMetaData(dobj, info);
     return;
     }
 
@@ -664,7 +680,18 @@ void vtkPVDataInformation::CopyFromObject(vtkObject* object)
   if (selection)
     {
     this->CopyFromSelection(selection);
-    this->CopyCommonMetaData(dobj);
+    this->CopyCommonMetaData(dobj, info);
+    return;
+    }
+
+  const char *cname = dobj->GetClassName();
+  vtkPVDataInformationHelper *dhelper = vtkPVDataInformation::FindHelper
+    (cname);
+  if (dhelper)
+    {
+    dhelper->CopyFromDataObject(this, dobj);
+    this->CopyCommonMetaData(dobj, info);
+    dhelper->Delete();
     return;
     }
 
@@ -672,7 +699,7 @@ void vtkPVDataInformation::CopyFromObject(vtkObject* object)
   // object types, this isn't an error condition - just
   // display the name of the data object and return quietly.
   this->SetDataClassName(dobj->GetClassName());
-  this->CopyCommonMetaData(dobj);
+  this->CopyCommonMetaData(dobj, info);
 }
 
 //----------------------------------------------------------------------------
@@ -846,6 +873,8 @@ void vtkPVDataInformation::AddInformation(
     this->Time = info->GetTime();
     this->HasTime = 1;
     }
+
+  this->SetTimeLabel(info->GetTimeLabel());
 }
 
 //----------------------------------------------------------------------------
@@ -888,9 +917,13 @@ const char* vtkPVDataInformation::GetPrettyDataTypeString()
     case VTK_MULTIBLOCK_DATA_SET:
       return "Multi-block Dataset";
     case VTK_HIERARCHICAL_DATA_SET:
-      return "Hierarchical DataSet";
+      return "Hierarchical DataSet (Deprecated)";
     case VTK_HIERARCHICAL_BOX_DATA_SET:
-      return "AMR Dataset";
+      return "AMR Dataset (Deprecated)";
+    case VTK_NON_OVERLAPPING_AMR:
+      return "Non-Overlapping AMR Dataset";
+    case VTK_OVERLAPPING_AMR:
+      return "Overlapping AMR Dataset";
     case VTK_GENERIC_DATA_SET:
       return "Generic Dataset";
     case VTK_HYPER_OCTREE:
@@ -913,6 +946,15 @@ const char* vtkPVDataInformation::GetPrettyDataTypeString()
       return "Multi-piece Dataset";
     case VTK_DIRECTED_ACYCLIC_GRAPH:
       return "Directed Acyclic Graph";
+    default:
+      vtkPVDataInformationHelper *dhelper = vtkPVDataInformation::FindHelper
+        (this->DataClassName);
+      if (dhelper)
+        {
+        const char *namestr = dhelper->GetPrettyDataTypeString();
+        dhelper->Delete();
+        return namestr;
+        }
     }
 
   return "UnknownType";
@@ -1020,8 +1062,9 @@ void vtkPVDataInformation::CopyToStream(vtkClientServerStream* css)
        << this->NumberOfRows
        << this->MemorySize
        << this->PolygonCount
-       << this->Time 
+       << this->Time
        << this->HasTime
+       << this->TimeLabel
        << vtkClientServerStream::InsertArray(this->Bounds, 6)
        << vtkClientServerStream::InsertArray(this->Extent, 6);
 
@@ -1160,6 +1203,13 @@ void vtkPVDataInformation::CopyFromStream(const vtkClientServerStream* css)
     vtkErrorMacro("Error parsing has-time.");
     return;
     }
+  const char* timeLabel = 0;
+  if (!CSS_GET_NEXT_ARGUMENT(css, 0, &timeLabel))
+    {
+    vtkErrorMacro("Error parsing time label.");
+    return;
+    }
+  this->SetTimeLabel(timeLabel);
   if(!CSS_GET_NEXT_ARGUMENT2(css, 0, this->Bounds, 6))
     {
     vtkErrorMacro("Error parsing bounds.");
@@ -1172,7 +1222,7 @@ void vtkPVDataInformation::CopyFromStream(const vtkClientServerStream* css)
     }
 
   vtkTypeUInt32 length;
-  vtkstd::vector<unsigned char> data;
+  std::vector<unsigned char> data;
   vtkClientServerStream dcss;
 
   // Point array information.
@@ -1332,4 +1382,32 @@ void vtkPVDataInformation::CopyFromStream(const vtkClientServerStream* css)
     }
 
   CSS_ARGUMENT_END();
+}
+
+//----------------------------------------------------------------------------
+void vtkPVDataInformation::RegisterHelper(const char *classname,
+                                          const char *helper)
+{
+  helpers[classname] = helper;
+}
+
+//----------------------------------------------------------------------------
+vtkPVDataInformationHelper* vtkPVDataInformation::FindHelper
+(const char *classname)
+{
+  std::map<std::string, std::string>::iterator iter =
+    helpers.find(classname ? classname : std::string());
+  if (iter != helpers.end())
+    {
+    std::string helperclassname = iter->second;
+    vtkObject* obj = vtkInstantiator::CreateInstance(helperclassname.c_str());
+    vtkPVDataInformationHelper* helper =
+      vtkPVDataInformationHelper::SafeDownCast(obj);
+    if(!helper)
+      {
+      obj->Delete();
+      }
+    return helper;
+    }
+  return NULL;
 }

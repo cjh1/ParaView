@@ -30,7 +30,6 @@
 #include "vtkStructuredPoints.h"
 #include "vtkUnstructuredGrid.h"
 
-#include "vtkDistributedDataFilter.h"
 #include "vtkPKdTree.h"
 #include "vtkPointSet.h"
 #include "vtkPoints.h"
@@ -43,8 +42,21 @@
 
 
 
-typedef vtkstd::vector< vtkPEnSightReader::vtkPEnSightReaderCellIds* > vtkPEnSightReaderCellIdsTypeBase;
+typedef std::vector< vtkPEnSightReader::vtkPEnSightReaderCellIds* > vtkPEnSightReaderCellIdsTypeBase;
 class vtkPEnSightReaderCellIdsType: public vtkPEnSightReaderCellIdsTypeBase {};
+
+namespace
+{
+  void cleanup(vtkPEnSightReaderCellIdsType* foo)
+    {
+    if (!foo) { return; }
+    for (vtkPEnSightReaderCellIdsType::iterator iter = foo->begin();
+      iter != foo->end(); ++iter)
+      {
+      delete *iter;
+      }
+    }
+}
 
 //----------------------------------------------------------------------------
 vtkPEnSightReader::vtkPEnSightReader()
@@ -116,12 +128,14 @@ vtkPEnSightReader::~vtkPEnSightReader()
 
   if (this->CellIds)
     {
+    cleanup(this->CellIds);
     delete this->CellIds;
     this->CellIds = NULL;
     }
 
   if (this->PointIds)
     {
+    cleanup(this->PointIds);
     delete this->PointIds;
     this->PointIds = NULL;
     }
@@ -216,17 +230,17 @@ int vtkPEnSightReader::RequestData(
 
   // Check if a particular time was requested by the pipeline.
   // This overrides the ivar.
-  if(outInfo->Has(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS()) && tsLength>0)
+  if(outInfo->Has(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP()) && tsLength>0)
     {
     // Get the requested time step. We only supprt requests of a single time
     // step in this reader right now
-    double *requestedTimeSteps =
-      outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS());
+    double requestedTimeStep =
+      outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
 
     // find the first time value larger than requested time value
     // this logic could be improved
     int cnt = 0;
-    while (cnt < tsLength-1 && steps[cnt] < requestedTimeSteps[0])
+    while (cnt < tsLength-1 && steps[cnt] < requestedTimeStep)
       {
       cnt++;
       }
@@ -449,7 +463,7 @@ int vtkPEnSightReader::RequestInformation(
   this->CaseFileRead = this->ReadCaseFile();
 
   // Convert time steps to one sorted and uniquefied list.
-  vtkstd::vector<double> timeValues;
+  std::vector<double> timeValues;
   if (this->GetTimeSets())
     {
     int numItems = this->GetTimeSets()->GetNumberOfItems();
@@ -468,10 +482,10 @@ int vtkPEnSightReader::RequestInformation(
     }
   if (timeValues.size() > 0)
     {
-    vtkstd::sort(timeValues.begin(), timeValues.end());
-    vtkstd::vector<double> uniqueTimeValues(
+    std::sort(timeValues.begin(), timeValues.end());
+    std::vector<double> uniqueTimeValues(
                                             timeValues.begin(),
-                                            vtkstd::unique(timeValues.begin(), timeValues.end()));
+                                            std::unique(timeValues.begin(), timeValues.end()));
     int numTimeValues = static_cast<int>(uniqueTimeValues.size());
     if (numTimeValues > 0)
       {
@@ -1362,7 +1376,7 @@ int vtkPEnSightReader::ReadCaseFile()
     vtkErrorMacro("A CaseFileName must be specified.");
     return 0;
     }
-  vtkstd::string sfilename;
+  std::string sfilename;
   if (this->FilePath)
     {
     sfilename = this->FilePath;
@@ -2418,7 +2432,7 @@ void vtkPEnSightReader::InsertNextCellAndId(vtkUnstructuredGrid* output, int vtk
     // go. Insert It with real points Ids
     vtkIdType cellId = output->InsertNextCell(vtkCellType, numPoints, newPoints);
     this->GetCellIds(partId, ensightCellType)->InsertNextId(cellId);
-    delete newPoints;
+    delete [] newPoints;
 
     this->CoordinatesAtEnd = true;
     this->InjectGlobalElementIds = true;

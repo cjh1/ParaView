@@ -42,11 +42,12 @@
 #define VTK_CREATE(type, name) \
   vtkSmartPointer<type> name = vtkSmartPointer<type>::New()
 
-#include <vtkstd/algorithm>
-#include <vtkstd/map>
-#include <vtkstd/set>
-#include <vtkstd/string>
-#include <vtkstd/vector>
+#include <algorithm>
+#include <map>
+#include <set>
+#include <string>
+#include <vector>
+#include <ctype.h> // for isprint().
 
 //=============================================================================
 vtkStandardNewMacro(vtkFileSeriesReader);
@@ -63,13 +64,13 @@ public:
   int GetAggregateTimeInfo(vtkInformation *outInfo);
   int GetInputTimeInfo(int index, vtkInformation *outInfo);
   int GetIndexForTime(double time);
-  vtkstd::set<int> ChooseInputs(vtkInformation *outInfo);
-  vtkstd::vector<double> GetTimesForInput(int inputId, vtkInformation *outInfo);
+  int ChooseInput(vtkInformation *outInfo);
+  std::vector<double> GetTimesForInput(int inputId, vtkInformation *outInfo);
 private:
   static vtkInformationIntegerKey *INDEX();
-  typedef vtkstd::map<double, vtkSmartPointer<vtkInformation> > RangeMapType;
+  typedef std::map<double, vtkSmartPointer<vtkInformation> > RangeMapType;
   RangeMapType RangeMap;
-  vtkstd::map<int, vtkSmartPointer<vtkInformation> > InputLookup;
+  std::map<int, vtkSmartPointer<vtkInformation> > InputLookup;
 };
 
 vtkInformationKeyMacro(vtkFileSeriesReaderTimeRanges, INDEX, Integer);
@@ -151,7 +152,7 @@ int vtkFileSeriesReaderTimeRanges::GetAggregateTimeInfo(vtkInformation *outInfo)
 
   outInfo->Set(vtkStreamingDemandDrivenPipeline::TIME_RANGE(), timeRange, 2);
 
-  vtkstd::vector<double> timeSteps;
+  std::vector<double> timeSteps;
 
   RangeMapType::iterator itr = this->RangeMap.begin();
   while (itr != this->RangeMap.end())
@@ -239,33 +240,24 @@ int vtkFileSeriesReaderTimeRanges::GetIndexForTime(double time)
 }
 
 //-----------------------------------------------------------------------------
-vtkstd::set<int> vtkFileSeriesReaderTimeRanges::ChooseInputs(
-                                                        vtkInformation *outInfo)
+int vtkFileSeriesReaderTimeRanges::ChooseInput(vtkInformation *outInfo)
 {
-  vtkstd::set<int> indices;
-  if(outInfo->Has(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS()))
+  int index=-1;
+  if(outInfo->Has(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP()))
     {
-    // get the update times
-    int numUpTimes = 
-      outInfo->Length(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS());
-    double *upTimes =
-      outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS());
-
-    for (int i = 0; i < numUpTimes; i++)
-      {
-      indices.insert(this->GetIndexForTime(upTimes[i]));
-      }
+    double upTime = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
+    index = this->GetIndexForTime(upTime);
     }
   else
     {
-    indices.insert(0);
+    index = 0;
     }
 
-  return indices;
+  return index;
 }
 
 //-----------------------------------------------------------------------------
-vtkstd::vector<double> vtkFileSeriesReaderTimeRanges::GetTimesForInput(
+std::vector<double> vtkFileSeriesReaderTimeRanges::GetTimesForInput(
                                                         int inputId,
                                                         vtkInformation *outInfo)
 {
@@ -303,23 +295,23 @@ vtkstd::vector<double> vtkFileSeriesReaderTimeRanges::GetTimesForInput(
     }
 
   // Now we are finally ready to identify the times
-  vtkstd::vector<double> times;
+  std::vector<double> times;
 
   // Get the update times
-  int numUpTimes = 
-    outInfo->Length(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS());
-  double *upTimes =
-    outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS());
+  int numUpTimes =
+    outInfo->Has(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
+  double upTime =
+    outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
 
   for (int i = 0; i < numUpTimes; i++)
     {
-    if ((upTimes[i]>=allowedTimeRange[0]) && (upTimes[i]<allowedTimeRange[1]))
+    if ((upTime>=allowedTimeRange[0]) && (upTime<allowedTimeRange[1]))
       {
       // Add the time.  Clamp it to the input's supported time range in
       // case that input is clipping based on the time.
-      times.push_back(vtkstd::max(supportedTimeRange[0],
-                                  vtkstd::min(supportedTimeRange[1],
-                                              upTimes[i])));
+      times.push_back(std::max(supportedTimeRange[0],
+                                  std::min(supportedTimeRange[1],
+                                              upTime)));
       }
     }
 
@@ -378,7 +370,7 @@ namespace
 //=============================================================================
 struct vtkFileSeriesReaderInternals
 {
-  vtkstd::vector<vtkstd::string> FileNames;
+  std::vector<std::string> FileNames;
   bool FileNameIsSet;
   vtkFileSeriesReaderTimeRanges *TimeRanges;
 };
@@ -422,7 +414,7 @@ vtkFileSeriesReader::~vtkFileSeriesReader()
 }
 
 //----------------------------------------------------------------------------
-// Overload standard modified time function. If the internal reader is 
+// Overload standard modified time function. If the internal reader is
 // modified, then this object is modified as well.
 unsigned long vtkFileSeriesReader::GetMTime()
 {
@@ -529,7 +521,7 @@ int vtkFileSeriesReader::CanReadFile(vtkAlgorithm *reader, const char *filename)
     {
     int canRead = 1;
     vtkClientServerInterpreter *interpreter =
-        vtkClientServerInterpreterInitializer::GetInterpreter();
+        vtkClientServerInterpreterInitializer::GetGlobalInterpreter();
 
     // Build stream request
     vtkClientServerStream stream;
@@ -581,15 +573,28 @@ int vtkFileSeriesReader::ProcessRequest(vtkInformation* request,
       {
       return this->RequestData(request, inputVector, outputVector);
       }
-    // Let the reader process anything we did not handle ourselves.
-    int retVal = this->Reader->ProcessRequest(request, 
-                                              inputVector,
-                                              outputVector);
+
     // Additional processing requried by us.
     if (request->Has(vtkStreamingDemandDrivenPipeline::REQUEST_UPDATE_EXTENT()))
       {
       this->RequestUpdateExtent(request, inputVector, outputVector);
       }
+
+    if (request->Has(vtkStreamingDemandDrivenPipeline::REQUEST_UPDATE_TIME()))
+      {
+      this->RequestUpdateTime(request, inputVector, outputVector);
+      }
+
+    if (request->Has(vtkStreamingDemandDrivenPipeline::REQUEST_TIME_DEPENDENT_INFORMATION()))
+      {
+      this->RequestUpdateTimeDependentInformation(request, inputVector, outputVector);
+      }
+
+// Let the reader process anything we did not handle ourselves.
+    int retVal = this->Reader->ProcessRequest(request,
+                                              inputVector,
+                                              outputVector);
+
 
     return retVal;
     }
@@ -670,28 +675,18 @@ int vtkFileSeriesReader::RequestUpdateExtent(
                                  vtkInformationVector* outputVector)
 {
   vtkInformation *outInfo = outputVector->GetInformationObject(0);
-  vtkstd::set<int> inputs = this->Internal->TimeRanges->ChooseInputs(outInfo);
-  if (inputs.size() > 1)
-    {
-    vtkErrorMacro("vtkTemporalDataSet not fully supported.");
-    // To support readers that give vtkTemporalDataSet, we would have to iterate
-    // over all of the readers in RequestData and then combine the outputs into
-    // some saved data set.
-    return 0;
-    }
-  if (inputs.size() == 0)
-    {
-    vtkErrorMacro("Inputs are not set.");
-    return 0;
-    }
-
-  int index = *(inputs.begin());
+  int index = this->ChooseInput(outInfo);
   if (index >= static_cast<int>(this->GetNumberOfFileNames()))
     {
     // this happens when there are no files set. That's an acceptable condition
     // when the file-series is not an essential filename eg. the Q file for
     // Plot3D reader.
     index = -1;
+    }
+  if (index<0)
+    {
+    vtkErrorMacro("Inputs are not set.");
+    return 0;
     }
 
   // Make sure that the reader file name is set correctly and that
@@ -706,7 +701,7 @@ int vtkFileSeriesReader::RequestUpdateExtent(
   // here for completeness.
   if(outInfo->Has(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS()))
     {
-    vtkstd::vector<double> times
+    std::vector<double> times
       = this->Internal->TimeRanges->GetTimesForInput(index, outInfo);
     outInfo->Set(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS(),
                  &times[0], times.size());
@@ -792,7 +787,7 @@ void vtkFileSeriesReader::SetReaderFileName(const char* fname)
   if (this->Reader && this->FileNameMethod)
     {
     vtkClientServerInterpreter *interpreter =
-        vtkClientServerInterpreterInitializer::GetInterpreter();
+        vtkClientServerInterpreterInitializer::GetGlobalInterpreter();
 
     // Build stream request
     vtkClientServerStream stream;
@@ -832,7 +827,7 @@ void vtkFileSeriesReader::SetCurrentFileName(const char *fname)
 }
 
 //-----------------------------------------------------------------------------
-int vtkFileSeriesReader::FillOutputPortInformation(int port, 
+int vtkFileSeriesReader::FillOutputPortInformation(int port,
                                                    vtkInformation* info)
 {
   if (this->Reader)
@@ -857,8 +852,8 @@ int vtkFileSeriesReader::ReadMetaDataFile(const char *metafilename,
     return 0;
     }
   // Get the path of the metafile for relative paths within.
-  vtkstd::string filePath = metafilename;
-  vtkstd::string::size_type pos = filePath.find_last_of("/\\");
+  std::string filePath = metafilename;
+  std::string::size_type pos = filePath.find_last_of("/\\");
   if(pos != filePath.npos)
     {
     filePath = filePath.substr(0, pos+1);
@@ -877,6 +872,14 @@ int vtkFileSeriesReader::ReadMetaDataFile(const char *metafilename,
     vtkStdString fname;
     metafile >> fname;
     if (fname.empty()) continue;
+    for (size_t cc=0; cc < fname.size(); cc++)
+      {
+      if (!isprint(fname.c_str()[cc]))
+        {
+        // must not be an ASCII file.
+        return 0;
+        }
+      }
     if ((fname.at(0) != '/') && ((fname.size() < 2) || (fname.at(1) != ':')))
       {
       fname = filePath + fname;
@@ -920,4 +923,9 @@ void vtkFileSeriesReader::PrintSelf(ostream& os, vtkIndent indent)
      << (this->MetaFileName?this->MetaFileName:"(none)") << endl;
   os << indent << "UseMetaFile: " << this->UseMetaFile << endl;
   os << indent << "IgnoreReaderTime: " << this->IgnoreReaderTime << endl;
+}
+
+int vtkFileSeriesReader::ChooseInput(vtkInformation* outInfo)
+{
+  return this->Internal->TimeRanges->ChooseInput(outInfo);
 }

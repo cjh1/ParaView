@@ -44,7 +44,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkSMPropertyHelper.h"
 #include "vtkSMProxyManager.h"
 #include "vtkSMProxyProperty.h"
+#include "vtkSMProxySelectionModel.h"
 #include "vtkSMRenderViewProxy.h"
+#include "vtkSMSession.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMSourceProxy.h"
 
 // Qt includes.
@@ -54,23 +57,40 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // ParaView GUI includes.
 #include "pq3DWidgetInterface.h"
+#include "pqActiveObjects.h"
 #include "pqApplicationCore.h"
 #include "pqBoxWidget.h"
 #include "pqDistanceWidget.h"
 #include "pqImplicitPlaneWidget.h"
 #include "pqInterfaceTracker.h"
 #include "pqLineSourceWidget.h"
-#include "pqPickHelper.h"
+#include "pqRubberBandHelper.h"
 #include "pqPipelineFilter.h"
 #include "pqPipelineSource.h"
 #include "pqPointSourceWidget.h"
 #include "pqProxy.h"
 #include "pqRenderViewBase.h"
-#include "pqServerManagerSelectionModel.h"
 #include "pqSMAdaptor.h"
+#include "pqServer.h"
 #include "pqSphereWidget.h"
 #include "pqSplineWidget.h"
-#include "pqServer.h"
+
+#include "vtkPVConfig.h"
+#ifdef PARAVIEW_ENABLE_PYTHON
+#include "pqPythonManager.h"
+#include "pqPythonDialog.h"
+#include "pqPythonShell.h"
+#endif
+
+namespace
+{
+  vtkSMProxySelectionModel* getSelectionModel(vtkSMProxy* proxy)
+    {
+    vtkSMSessionProxyManager* pxm =
+      proxy->GetSession()->GetSessionProxyManager();
+    return pxm->GetSelectionModel("ActiveSources");
+    }
+}
 
 //-----------------------------------------------------------------------------
 class pq3DWidget::pqStandardWidgets : public pq3DWidgetInterface
@@ -150,7 +170,7 @@ public:
   /// Stores the selected/not selected state of the 3D widget (controlled by the owning panel)
   bool Selected;
 
-  pqPickHelper PickHelper;
+  pqRubberBandHelper PickHelper;
   QKeySequence PickSequence;
   QPointer<QShortcut> PickShortcut;
   bool IsMaster;
@@ -173,12 +193,17 @@ pq3DWidget::pq3DWidget(vtkSMProxy* refProxy, vtkSMProxy* pxy, QWidget* _p) :
   this->setControlledProxy(pxy);
 
   QObject::connect(&this->Internal->PickHelper,
-    SIGNAL(pickFinished(double, double, double)),
+    SIGNAL(intersectionFinished(double, double, double)),
     this, SLOT(pick(double, double, double)));
 
   QObject::connect( pqApplicationCore::instance(),
                     SIGNAL(updateMasterEnableState(bool)),
                     this, SLOT(updateMasterEnableState(bool)));
+
+  QObject::connect( &pqActiveObjects::instance(),
+                    SIGNAL(sourceNotification(pqPipelineSource*,char*)),
+                    this,
+                    SLOT(handleSourceNotification(pqPipelineSource*,char*)));
 }
 
 //-----------------------------------------------------------------------------
@@ -254,13 +279,25 @@ void pq3DWidget::setView(pqView* pqview)
     return;
     }
 
+  // This test has been added to support proxy that have been created on
+  // different servers. We return if we switch from a view from a server
+  // to another view from another server.
+  vtkSMProxy* widget = this->getWidgetProxy();
+  if ((widget && pqview &&
+       pqview->getProxy()->GetSession() != widget->GetSession())
+      ||
+      (rview && pqview &&
+       rview->getProxy()->GetSession() != pqview->getProxy()->GetSession()))
+    {
+    return;
+    }
+
   // get rid of old shortcut.
   delete this->Internal->PickShortcut;
 
   bool cur_visbility = this->widgetVisible();
   this->hideWidget();
 
-  vtkSMProxy* widget = this->getWidgetProxy();
   if (rview && widget)
     {
     // To add/remove the 3D widget display from the view module.
@@ -280,7 +317,7 @@ void pq3DWidget::setView(pqView* pqview)
     this->Internal->PickShortcut = new QShortcut(
       this->Internal->PickSequence, pqview->getWidget());
     QObject::connect(this->Internal->PickShortcut, SIGNAL(activated()),
-      &this->Internal->PickHelper, SLOT(pick()));
+      &this->Internal->PickHelper, SLOT(triggerFastIntersect()));
     }
 
   if (rview && widget)
@@ -423,16 +460,12 @@ void pq3DWidget::setHints(vtkPVXMLElement* hints)
     }
 
   vtkSMProxy* pxy = this->proxy();
-  unsigned int max = hints->GetNumberOfNestedElements();
-  for (unsigned int cc=0; cc < max; cc++)
+  unsigned int max_props = hints->GetNumberOfNestedElements();
+  for (unsigned int i=0; i < max_props; i++)
     {
-    unsigned int max_props = hints->GetNumberOfNestedElements();
-    for (unsigned int i=0; i < max_props; i++)
-      {
-      vtkPVXMLElement* propElem = hints->GetNestedElement(i);
-      this->setControlledProperty(propElem->GetAttribute("function"),
-        pxy->GetProperty(propElem->GetAttribute("name")));
-      }
+    vtkPVXMLElement* propElem = hints->GetNestedElement(i);
+    this->setControlledProperty(propElem->GetAttribute("function"),
+      pxy->GetProperty(propElem->GetAttribute("name")));
     }
 }
 
@@ -549,6 +582,25 @@ void pq3DWidget::setWidgetVisible(bool visible)
     {
     this->Internal->WidgetVisible = visible;
     this->updateWidgetVisibility();
+
+    // Handle trace to support show/hide actions
+#ifdef PARAVIEW_ENABLE_PYTHON
+    pqApplicationCore* core = pqApplicationCore::instance();
+    pqPythonManager* manager =
+        qobject_cast<pqPythonManager*>(core->manager("PYTHON_MANAGER"));
+    if (manager && manager->interpreterIsInitialized() &&
+        manager->canStopTrace() && this->renderView())
+      {
+      QString script =
+          QString("try:\n"
+                  "  paraview.smtrace\n"
+                  "  paraview.smtrace.trace_change_widget_visibility('%1')\n"
+                  "except AttributeError: pass\n").arg(
+            visible ? "ShowWidget" : "HideWidget");
+      pqPythonShell* shell = manager->pythonShellDialog()->shell();
+      shell->executeScript(script);
+      }
+#endif
     
     emit this->widgetVisibilityChanged(visible);
     }
@@ -671,8 +723,9 @@ void pq3DWidget::resetBounds()
   double input_bounds[6];
   if (this->UseSelectionDataBounds)
     {
-    if (!pqApplicationCore::instance()->getSelectionModel()->
-      getSelectionDataBounds(input_bounds))
+    vtkSMProxySelectionModel* selModel = getSelectionModel(widget);
+
+    if (!selModel->GetSelectionDataBounds(input_bounds))
       {
       return;
       }
@@ -696,5 +749,20 @@ void pq3DWidget::updateMasterEnableState(bool I_am_the_Master)
   else
     {
     this->hideWidget();
+    }
+}
+//-----------------------------------------------------------------------------
+void pq3DWidget::handleSourceNotification(pqPipelineSource* source,char* msg)
+{
+  if(source->getProxy() == this->Internal->ReferenceProxy.GetPointer() && msg)
+    {
+    if(!strcmp("HideWidget", msg))
+      {
+      this->hideWidget();
+      }
+    else if(!strcmp("ShowWidget",msg))
+      {
+      this->showWidget();
+      }
     }
 }

@@ -26,6 +26,9 @@
 #include "vtkImageReader.h"
 
 #define ANALYZE_HEADER_ARRAY "vtkAnalyzeReaderHeaderArray"
+#define POINT_SPACE_ARRAY "vtkPointSpace"
+#define VOLUME_ORIGIN_DOUBLE_ARRAY "vtkVolumeOrigin"
+#define VOLUME_SPACING_DOUBLE_ARRAY "vtkVolumeSpacing"
 
 class vtkDataArray;
 class vtkUnsignedCharArray;
@@ -65,7 +68,7 @@ protected:
   ~vtkAnalyzeReader();
 
   virtual void ExecuteInformation();
-  virtual void ExecuteData(vtkDataObject *out);
+  virtual void ExecuteDataWithInformation(vtkDataObject *out, vtkInformation* outInfo);
 private:
   vtkAnalyzeReader(const vtkAnalyzeReader&);  // Not implemented.
   void operator=(const vtkAnalyzeReader&);  // Not implemented.

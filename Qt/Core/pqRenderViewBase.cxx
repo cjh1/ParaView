@@ -42,21 +42,22 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkSMGlobalPropertiesManager.h"
 #include "vtkSMProperty.h"
 #include "vtkSMIntVectorProperty.h"
-#include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMRenderViewProxy.h"
 #include "vtkSMSourceProxy.h"
 #include "vtkRenderWindow.h"
 
 // Qt Includes.
 #include <QList>
+#include <QMainWindow>
+#include <QMap>
+#include <QMapIterator>
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPoint>
 #include <QPointer>
-#include <QtDebug>
-#include <QTimer>
-#include <QMainWindow>
 #include <QStatusBar>
+#include <QtDebug>
 
 // ParaView Includes.
 #include "pqApplicationCore.h"
@@ -69,6 +70,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqServerManagerModel.h"
 #include "pqSettings.h"
 #include "pqSMAdaptor.h"
+#include "pqTimer.h"
+#include "pqRenderView.h"
 
 class pqRenderViewBase::pqInternal
 {
@@ -140,7 +143,7 @@ pqRenderViewBase::pqRenderViewBase(
   Superclass(type, group, name, renViewProxy, server, _parent)
 {
   this->Internal = new pqRenderViewBase::pqInternal();
-  this->InteractiveDelayUpdateTimer = new QTimer(this);
+  this->InteractiveDelayUpdateTimer = new pqTimer(this);
   this->AllowCaching = true;
 }
 
@@ -269,10 +272,6 @@ void pqRenderViewBase::initializeAfterObjectsCreated()
 void pqRenderViewBase::setDefaultPropertyValues()
 {
   vtkSMProxy* proxy = this->getProxy();
-  pqSMAdaptor::setElementProperty(proxy->GetProperty("LODResolution"), 50);
-  pqSMAdaptor::setElementProperty(proxy->GetProperty("LODThreshold"), 5);
-  pqSMAdaptor::setElementProperty(proxy->GetProperty("RemoteRenderThreshold"), 3);
-  pqSMAdaptor::setElementProperty(proxy->GetProperty("TileDisplayCompositeThreshold"), 3);
 
   // Compressor setting to pull from application wide settings cache.
   pqSMAdaptor::setElementProperty(proxy->GetProperty("CompressorConfig"),"NULL");
@@ -299,31 +298,37 @@ void pqRenderViewBase::setDefaultPropertyValues()
 }
 
 //-----------------------------------------------------------------------------
-/// This method is called during initialize() to initialize the interactors.
-/// Interactor (interactor style, manipulators etc). Eventually, all the code
-/// that deals with interactor/interactor styles must be removed from the
-/// server manager (rather vtkSMRenderViewProxy). It's the application's
-/// responsibility to set up the interaction capabilities as per the domain.
 void pqRenderViewBase::initializeInteractors()
 {
-  QList<pqSMProxy> manips;
+  // Local vars
+  QMap<QString, QList<pqSMProxy> > manipulators;
+  int numberOfManipulators = 0;
+  const ManipulatorType* defaultManipTypes;
 
-  // subclass will give us the default manipulator types.
-  const ManipulatorType* defaultManipTypes = 
-    this->getDefaultManipulatorTypesInternal();
-  for (int cc=0; cc < 9; cc++)
+  // Get specific manipulators definitions (cf: concreate class)
+  defaultManipTypes = this->getManipulatorTypes(numberOfManipulators);
+
+  // Fill internal structure
+  for(int index = 0; index < numberOfManipulators; index++)
     {
-    const ManipulatorType &manipType = defaultManipTypes[cc];
+    const ManipulatorType &manipType = defaultManipTypes[index];
     vtkSMProxy *manip = this->createCameraManipulator(
-      manipType.Mouse, manipType.Shift, manipType.Control, manipType.Name);
-    manips.push_back(manip);
+          manipType.Mouse, manipType.Shift, manipType.Control, manipType.Name);
+    manipulators[manipType.CameraManipulatorName].push_back(manip);
     manip->Delete();
     }
-  this->setCameraManipulators(manips);
+
+  // For each camera manipulator set the manipulators
+  QMapIterator<QString, QList<pqSMProxy> > iter(manipulators);
+  while (iter.hasNext())
+    {
+      iter.next();
+      this->setCameraManipulators(iter.key(), iter.value());
+    }
 }
 
 //-----------------------------------------------------------------------------
-bool pqRenderViewBase::setCameraManipulators(const QList<pqSMProxy>& manipulators)
+bool pqRenderViewBase::setCameraManipulators(const QString &cameraManipulatorName, const QList<pqSMProxy>& manipulators)
 {
   if (manipulators.size()<=0)
     {
@@ -331,19 +336,20 @@ bool pqRenderViewBase::setCameraManipulators(const QList<pqSMProxy>& manipulator
     }
 
   vtkSMProxy* viewproxy = this->getProxy();
+  const char* propertyName = cameraManipulatorName.toAscii().data();
 
   pqSMAdaptor::setProxyListProperty(
-    viewproxy->GetProperty("CameraManipulators"),
+    viewproxy->GetProperty(propertyName),
     manipulators);
-  viewproxy->UpdateProperty("CameraManipulators");
+  viewproxy->UpdateProperty(propertyName, 1);
   return true;
 }
 
 //-----------------------------------------------------------------------------
-QList<vtkSMProxy*> pqRenderViewBase::getCameraManipulators() const
+QList<vtkSMProxy*> pqRenderViewBase::getCameraManipulators(const QString &cameraManipulatorName) const
 {
   QList<pqSMProxy> manips = pqSMAdaptor::getProxyListProperty(
-    this->getProxy()->GetProperty("CameraManipulators"));
+    this->getProxy()->GetProperty(cameraManipulatorName.toAscii().data()));
 
   QList<vtkSMProxy*> reply;
   foreach (vtkSMProxy* proxy, manips)
@@ -352,7 +358,6 @@ QList<vtkSMProxy*> pqRenderViewBase::getCameraManipulators() const
     }
   return reply;
 }
-
 //-----------------------------------------------------------------------------
 vtkSMProxy* pqRenderViewBase::createCameraManipulator(
   int mouse, int shift, int control, QString name)
@@ -387,7 +392,7 @@ vtkSMProxy* pqRenderViewBase::createCameraManipulator(
     strManipName = "None";
     }
 
-  vtkSMProxyManager* pxm = this->proxyManager();
+  vtkSMSessionProxyManager* pxm = this->proxyManager();
   vtkSMProxy *manip = pxm->NewProxy("cameramanipulators", 
     strManipName.toAscii().data());
   if(!manip)
@@ -439,7 +444,6 @@ static const char* pqRenderViewModuleLightSettings [] = {
   };
 
 static const char* pqGlobalRenderViewModuleMiscSettings [] = {
-  "CollectGeometryThreshold",
   "CompressionEnabled",
   "CompressorConfig",
   "DepthPeeling",
@@ -452,8 +456,8 @@ static const char* pqGlobalRenderViewModuleMiscSettings [] = {
   "RemoteRenderThreshold",
   "RenderInterruptsEnabled",
   "StillRenderImageReductionFactor",
-  "TileDisplayCompositeThreshold",
   "UseOffscreenRenderingForScreenshots",
+  "UseOutlineForLODRendering",
   NULL
   };
 
@@ -555,33 +559,39 @@ void pqRenderViewBase::restoreSettings(bool only_global)
     }
   settings->endGroup();
 
-  settings->beginGroup(this->interactorStyleSettingsGroup());
-  // Active Camera Manipulators
-  if (settings->contains("CameraManipulators"))
+  // Loop over all interactor styles
+  QMapIterator<QString, QString> manipIter(this->interactorStyleSettingsGroupToCameraManipulatorName());
+  while(manipIter.hasNext())
     {
-    QStringList qStrManipList = 
-      settings->value("CameraManipulators").toStringList();
-    int index, mouse, shift, control;
-    QString name;
-    char tmpName[20];
-    QList<pqSMProxy> smManipList;
-    foreach(QString strManip, qStrManipList)
+    manipIter.next();
+    settings->beginGroup(manipIter.key());
+    // Active Camera Manipulators
+    if (settings->contains("CameraManipulators"))
       {
-      sscanf(strManip.toAscii().data(), "Manipulator%dMouse%dShift%dControl%dName%s",
-        &index, &mouse, &shift, &control, tmpName);
-      name = tmpName;
-      vtkSMProxy* localManip = this->createCameraManipulator(
-        mouse, shift, control, name);
-      if(!localManip)
+      QStringList qStrManipList =
+          settings->value("CameraManipulators").toStringList();
+      int index, mouse, shift, control;
+      QString name;
+      char tmpName[20];
+      QList<pqSMProxy> smManipList;
+      foreach(QString strManip, qStrManipList)
         {
-        continue;
+        sscanf(strManip.toAscii().data(), "Manipulator%dMouse%dShift%dControl%dName%s",
+               &index, &mouse, &shift, &control, tmpName);
+        name = tmpName;
+        vtkSMProxy* localManip = this->createCameraManipulator(
+              mouse, shift, control, name);
+        if(!localManip)
+          {
+          continue;
+          }
+        smManipList.push_back(localManip);
+        localManip->Delete();
         }
-      smManipList.push_back(localManip);
-      localManip->Delete();
+      this->setCameraManipulators(manipIter.value(), smManipList);
       }
-    this->setCameraManipulators(smManipList);
+    settings->endGroup();
     }
-  settings->endGroup();
 }
 
 //-----------------------------------------------------------------------------
@@ -821,7 +831,7 @@ void pqRenderViewBase::beginDelayInteractiveRender()
   vtkSMIntVectorProperty *prop =
       vtkSMIntVectorProperty::SafeDownCast(
           this->getProxy()->GetProperty("NonInteractiveRenderDelay"));
-  double value = prop ? static_cast<double>(prop->GetElement(0)) : 2;
+  double value = prop ? static_cast<double>(prop->GetElement(0)) : 0;
   this->Internal->startInteractiveRenderDelay(value);
   this->InteractiveDelayUpdateTimer->start(100);
 }

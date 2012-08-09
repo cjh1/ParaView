@@ -42,23 +42,26 @@
 #include "vtkSelection.h"
 #include "vtkSelectionNode.h"
 #include "vtkSmartPointer.h"
+#include "vtkSMCollaborationManager.h"
+#include "vtkSMDataDeliveryManager.h"
 #include "vtkSMEnumerationDomain.h"
 #include "vtkSMInputProperty.h"
 #include "vtkSMProperty.h"
 #include "vtkSMPropertyHelper.h"
 #include "vtkSMPropertyIterator.h"
-#include "vtkSMProxyManager.h"
 #include "vtkSMRepresentationProxy.h"
 #include "vtkSMSelectionHelper.h"
 #include "vtkSMSession.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkTransform.h"
 #include "vtkWeakPointer.h"
 #include "vtkWindowToImageFilter.h"
 
-#include <vtkstd/map>
+#include <map>
 
 namespace
 {
+
   bool vtkIsImageEmpty(vtkImageData* image)
     {
     vtkDataArray* scalars = image->GetPointData()->GetScalars();
@@ -106,11 +109,27 @@ vtkStandardNewMacro(vtkSMRenderViewProxy);
 vtkSMRenderViewProxy::vtkSMRenderViewProxy()
 {
   this->IsSelectionCached = false;
+  this->NewMasterObserverId = 0;
+  this->DeliveryManager = NULL;
+  this->NeedsUpdateLOD = true;
 }
 
 //----------------------------------------------------------------------------
 vtkSMRenderViewProxy::~vtkSMRenderViewProxy()
 {
+  if( this->NewMasterObserverId != 0 &&
+      this->Session && this->Session->GetCollaborationManager())
+    {
+    this->Session->GetCollaborationManager()->RemoveObserver(
+          this->NewMasterObserverId);
+    this->NewMasterObserverId = 0;
+    }
+
+  if (this->DeliveryManager)
+    {
+    this->DeliveryManager->Delete();
+    this->DeliveryManager = NULL;
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -138,6 +157,11 @@ bool vtkSMRenderViewProxy::IsSelectionAvailable()
 const char* vtkSMRenderViewProxy::IsSelectVisibleCellsAvailable()
 {
   vtkSMSession* session = this->GetSession();
+
+  if(session->IsMultiClients() && !session->GetCollaborationManager()->IsMaster())
+    {
+    return "Cannot support selection in collaboration mode when not MASTER";
+    }
 
   if (session->GetIsAutoMPI())
     {
@@ -179,6 +203,67 @@ const char* vtkSMRenderViewProxy::IsSelectVisibleCellsAvailable()
 const char* vtkSMRenderViewProxy::IsSelectVisiblePointsAvailable()
 {
   return this->IsSelectVisibleCellsAvailable();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSMRenderViewProxy::Update()
+{
+  this->NeedsUpdateLOD |= this->NeedsUpdate;
+  this->Superclass::Update();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSMRenderViewProxy::UpdateLOD()
+{
+  if (this->ObjectsCreated && this->NeedsUpdateLOD)
+    {
+    vtkClientServerStream stream;
+    stream << vtkClientServerStream::Invoke
+           << VTKOBJECT(this)
+           << "UpdateLOD"
+           << vtkClientServerStream::End;
+    this->GetSession()->PrepareProgress();
+    this->ExecuteStream(stream);
+    this->GetSession()->CleanupPendingProgress();
+   
+    this->NeedsUpdateLOD = false;
+    }
+}
+
+//-----------------------------------------------------------------------------
+bool vtkSMRenderViewProxy::StreamingUpdate(bool render_if_needed)
+{
+  this->GetSession()->PrepareProgress();
+
+  // Tell the delivery manager to fetch next piece in queue, if any. 
+  bool something_delivered = this->DeliveryManager->DeliverNextPiece();
+  if (render_if_needed && something_delivered)
+    {
+    this->StillRender();
+    }
+
+  this->GetSession()->CleanupPendingProgress();
+  return something_delivered;
+}
+
+//-----------------------------------------------------------------------------
+vtkTypeUInt32 vtkSMRenderViewProxy::PreRender(bool interactive)
+{
+  this->Superclass::PreRender(interactive);
+
+  vtkPVRenderView* rv = vtkPVRenderView::SafeDownCast(
+    this->GetClientSideObject());
+  assert(rv != NULL);
+
+  if (interactive && rv->GetUseLODForInteractiveRender())
+    {
+    // for interactive renders, we need to determine if we are going to use LOD.
+    // If so, we may need to update the LOD geometries.
+    this->UpdateLOD();
+    }
+  this->DeliveryManager->Deliver(interactive);
+  return interactive? rv->GetInteractiveRenderProcesses():
+    rv->GetStillRenderProcesses();
 }
 
 //-----------------------------------------------------------------------------
@@ -328,6 +413,19 @@ void vtkSMRenderViewProxy::CreateVTKObjects()
     this->ExecuteStream(stream);
     }
   info->Delete();
+
+  // Attach to the collaborative session a callback to clear the selection cache
+  // on the server side when we became master
+  if(this->Session->IsMultiClients())
+    {
+    this->NewMasterObserverId =
+        this->Session->GetCollaborationManager()->AddObserver(
+          vtkSMCollaborationManager::UpdateMasterUser, this, &vtkSMRenderViewProxy::NewMasterCallback);
+    }
+
+  // Setup data-delivery manager.
+  this->DeliveryManager = vtkSMDataDeliveryManager::New();
+  this->DeliveryManager->SetViewProxy(this);
 }
 
 //----------------------------------------------------------------------------
@@ -339,7 +437,7 @@ vtkSMRepresentationProxy* vtkSMRenderViewProxy::CreateDefaultRepresentation(
     return 0;
     }
 
-  vtkSMProxyManager* pxm = source->GetProxyManager();
+  vtkSMSessionProxyManager* pxm = source->GetSessionProxyManager();
 
   // Update with time to avoid domains updating without time later.
   vtkSMSourceProxy* sproxy = vtkSMSourceProxy::SafeDownCast(source);
@@ -377,6 +475,34 @@ vtkSMRepresentationProxy* vtkSMRenderViewProxy::CreateDefaultRepresentation(
     {
     return vtkSMRepresentationProxy::SafeDownCast(
       pxm->NewProxy("representations", "UniformGridRepresentation"));
+    }
+
+  prototype = pxm->GetPrototypeProxy("representations",
+    "AMRRepresentation");
+  pp = vtkSMInputProperty::SafeDownCast(
+    prototype->GetProperty("Input"));
+  pp->RemoveAllUncheckedProxies();
+  pp->AddUncheckedInputConnection(source, opport);
+  bool ag = (pp->IsInDomains()>0);
+  pp->RemoveAllUncheckedProxies();
+  if (ag)
+    {
+    return vtkSMRepresentationProxy::SafeDownCast(
+      pxm->NewProxy("representations", "AMRRepresentation"));
+    }
+
+  prototype = pxm->GetPrototypeProxy("representations",
+    "MoleculeRepresentation");
+  pp = vtkSMInputProperty::SafeDownCast(
+    prototype->GetProperty("Input"));
+  pp->RemoveAllUncheckedProxies();
+  pp->AddUncheckedInputConnection(source, opport);
+  bool mg = (pp->IsInDomains()>0);
+  pp->RemoveAllUncheckedProxies();
+  if (mg)
+    {
+    return vtkSMRepresentationProxy::SafeDownCast(
+      pxm->NewProxy("representations", "MoleculeRepresentation"));
     }
 
   prototype = pxm->GetPrototypeProxy("representations",
@@ -517,16 +643,7 @@ void vtkSMRenderViewProxy::ResetCamera(double bounds[6])
 //-----------------------------------------------------------------------------
 void vtkSMRenderViewProxy::MarkDirty(vtkSMProxy* modifiedProxy)
 {
-  if (this->IsSelectionCached)
-    {
-    this->IsSelectionCached = false;
-    vtkClientServerStream stream;
-    stream  << vtkClientServerStream::Invoke
-            << VTKOBJECT(this)
-            << "InvalidateCachedSelection"
-            << vtkClientServerStream::End;
-    this->ExecuteStream(stream);
-    }
+  this->ClearSelectionCache();
 
   // skip modified properties on camera subproxy.
   if (modifiedProxy != this->GetSubProxy("ActiveCamera"))
@@ -612,37 +729,37 @@ namespace
   //-----------------------------------------------------------------------------
   static void vtkShrinkSelection(vtkSelection* sel)
     {
-    vtkstd::map<int, int> pixelCounts;
+    std::map<void*, int> pixelCounts;
     unsigned int numNodes = sel->GetNumberOfNodes();
-    int choosen = -1;
+    void* choosen = NULL;
     int maxPixels = -1;
     for (unsigned int cc=0; cc < numNodes; cc++)
       {
       vtkSelectionNode* node = sel->GetNode(cc);
       vtkInformation* properties = node->GetProperties();
       if (properties->Has(vtkSelectionNode::PIXEL_COUNT()) &&
-        properties->Has(vtkSelectionNode::SOURCE_ID()))
+        properties->Has(vtkSelectionNode::SOURCE()))
         {
         int numPixels = properties->Get(vtkSelectionNode::PIXEL_COUNT());
-        int source_id = properties->Get(vtkSelectionNode::SOURCE_ID());
-        pixelCounts[source_id] += numPixels;
-        if (pixelCounts[source_id] > maxPixels)
+        void* source = properties->Get(vtkSelectionNode::SOURCE());
+        pixelCounts[source] += numPixels;
+        if (pixelCounts[source] > maxPixels)
           {
           maxPixels = numPixels;
-          choosen = source_id;
+          choosen = source;
           }
         }
       }
 
-    vtkstd::vector<vtkSmartPointer<vtkSelectionNode> > choosenNodes;
-    if (choosen != -1)
+    std::vector<vtkSmartPointer<vtkSelectionNode> > choosenNodes;
+    if (choosen != NULL)
       {
       for (unsigned int cc=0; cc < numNodes; cc++)
         {
         vtkSelectionNode* node = sel->GetNode(cc);
         vtkInformation* properties = node->GetProperties();
-        if (properties->Has(vtkSelectionNode::SOURCE_ID()) &&
-          properties->Get(vtkSelectionNode::SOURCE_ID()) == choosen)
+        if (properties->Has(vtkSelectionNode::SOURCE()) &&
+          properties->Get(vtkSelectionNode::SOURCE()) == choosen)
           {
           choosenNodes.push_back(node);
           }
@@ -663,13 +780,9 @@ bool vtkSMRenderViewProxy::FetchLastSelection(
 {
   if (selectionSources && selectedRepresentations)
     {
-    vtkSmartPointer<vtkPVLastSelectionInformation> info =
-      vtkSmartPointer<vtkPVLastSelectionInformation>::New();
-
-    this->GetSession()->GatherInformation(
-      vtkPVSession::DATA_SERVER, info, this->GetGlobalID());
-
-    vtkSelection* selection = info->GetSelection();
+    vtkPVRenderView* rv = vtkPVRenderView::SafeDownCast(
+      this->GetClientSideObject());
+    vtkSelection* selection = rv->GetLastSelection();
     if (!multiple_selections)
       {
       // only pass through selection over a single representation.
@@ -760,7 +873,7 @@ bool vtkSMRenderViewProxy::SelectFrustumInternal(int region[4],
   renderer->DisplayToWorld();
   renderer->GetWorldPoint(&frustum[index*4]);
 
-  vtkSMProxy* selectionSource = this->GetProxyManager()->NewProxy("sources",
+  vtkSMProxy* selectionSource = this->GetSessionProxyManager()->NewProxy("sources",
     "FrustumSelectionSource");
   vtkSMPropertyHelper(selectionSource, "FieldType").Set(fieldAssociation);
   vtkSMPropertyHelper(selectionSource, "Frustum").Set(frustum, 32);
@@ -909,4 +1022,30 @@ double vtkSMRenderViewProxy::GetZBufferValue(int x, int y)
 void vtkSMRenderViewProxy::PrintSelf(ostream& os, vtkIndent indent)
 {
   this->Superclass::PrintSelf(os, indent);
+}
+//----------------------------------------------------------------------------
+void vtkSMRenderViewProxy::NewMasterCallback(vtkObject*, unsigned long, void*)
+{
+  if( this->Session && this->Session->IsMultiClients() &&
+      this->Session->GetCollaborationManager()->IsMaster())
+    {
+    // Make sure we clear the selection cache server side as well as previous
+    // master might already have set a selection that has been cached.
+    this->ClearSelectionCache(/*force=*/true);
+    }
+}
+
+//----------------------------------------------------------------------------
+void vtkSMRenderViewProxy::ClearSelectionCache(bool force/*=false*/)
+{
+  if(this->IsSelectionCached || force)
+    {
+    this->IsSelectionCached = false;
+    vtkClientServerStream stream;
+    stream  << vtkClientServerStream::Invoke
+            << VTKOBJECT(this)
+            << "InvalidateCachedSelection"
+            << vtkClientServerStream::End;
+    this->ExecuteStream(stream);
+    }
 }

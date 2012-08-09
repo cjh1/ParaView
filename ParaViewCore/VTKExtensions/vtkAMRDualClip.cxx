@@ -15,7 +15,7 @@
 #include "vtkAMRDualClip.h"
 #include "vtkAMRDualGridHelper.h"
 
-#include "vtkstd/vector"
+#include "vector"
 
 // Pipeline & VTK
 #include "vtkMarchingCubesCases.h"
@@ -38,7 +38,7 @@
 #include "vtkUniformGrid.h"
 #include "vtkUnstructuredGrid.h"
 #include "vtkMultiBlockDataSet.h"
-#include "vtkHierarchicalBoxDataSet.h"
+#include "vtkNonOverlappingAMR.h"
 #include "vtkCompositeDataIterator.h"
 #include "vtkMultiPieceDataSet.h"
 #include "vtkAMRBox.h"
@@ -1425,7 +1425,7 @@ int vtkAMRDualClip::RequestData(
 {
   // get the data set which we are to process
   vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
-  vtkHierarchicalBoxDataSet *hbdsInput=vtkHierarchicalBoxDataSet::SafeDownCast(
+  vtkNonOverlappingAMR *hbdsInput=vtkNonOverlappingAMR::SafeDownCast(
     inInfo->Get(vtkDataObject::DATA_OBJECT()));
 
   // Get the outputs
@@ -1444,7 +1444,7 @@ int vtkAMRDualClip::RequestData(
   if ( hbdsInput==0 )
     {
     // Do not deal with rectilinear grid
-    vtkErrorMacro("This filter requires a vtkHierarchicalBoxDataSet on its input.");
+    vtkErrorMacro("This filter requires a vtkNonOverlappingAMR on its input.");
     return 0;
     }
 
@@ -1486,7 +1486,7 @@ int vtkAMRDualClip::RequestData(
 
 
 vtkMultiBlockDataSet*
-vtkAMRDualClip::DoRequestData(vtkHierarchicalBoxDataSet* hbdsInput,
+vtkAMRDualClip::DoRequestData(vtkNonOverlappingAMR* hbdsInput,
                               const char* arrayNameToProcess)
 {
   vtkMultiBlockDataSet* mbdsOutput0 = vtkMultiBlockDataSet::New();
@@ -1513,7 +1513,8 @@ vtkAMRDualClip::DoRequestData(vtkHierarchicalBoxDataSet* hbdsInput,
     }
 
   // @TODO: Check if this is the right thing to do.
-  this->Helper->Initialize(hbdsInput, arrayNameToProcess);
+  this->Helper->Initialize(hbdsInput);
+  this->Helper->SetupData(hbdsInput, arrayNameToProcess);
 
   if (this->Controller && this->Controller->GetNumberOfProcesses() > 1 &&
       this->EnableDegenerateCells)
@@ -2388,7 +2389,7 @@ void vtkAMRDualClip::DistributeLevelMasks()
 
 //----------------------------------------------------------------------------
 void vtkAMRDualClip::InitializeCopyAttributes(
-  vtkHierarchicalBoxDataSet *hbdsInput,
+  vtkNonOverlappingAMR *hbdsInput,
   vtkDataSet* mesh)
 {
   // Most of this is just getting a block with cell attributes so we can

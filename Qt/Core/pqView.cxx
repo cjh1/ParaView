@@ -47,18 +47,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QList>
 #include <QPointer>
 #include <QtDebug>
-#include <QTimer>
 #include <QWidget>
 
 // ParaView includes.
 #include "pqApplicationCore.h"
+#include "pqOutputPort.h"
+#include "pqPipelineSource.h"
 #include "pqProgressManager.h"
 #include "pqRepresentation.h"
 #include "pqServer.h"
 #include "pqServerManagerModel.h"
 #include "pqTimeKeeper.h"
-#include "pqOutputPort.h"
-#include "pqPipelineSource.h"
+#include "pqTimer.h"
 
 inline int pqCeil(double val)
 {
@@ -101,7 +101,7 @@ public:
       }
     }
 
-  QTimer RenderTimer;
+  pqTimer RenderTimer;
 };
 
 //-----------------------------------------------------------------------------
@@ -182,6 +182,12 @@ void pqView::initialize()
   // registered, this method will detect them and sync the GUI state with the 
   // SM state.
   this->onRepresentationsChanged();
+}
+
+//-----------------------------------------------------------------------------
+void pqView::cancelPendingRenders()
+{
+  this->Internal->RenderTimer.stop();
 }
 
 //-----------------------------------------------------------------------------

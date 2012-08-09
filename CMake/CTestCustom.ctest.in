@@ -149,6 +149,9 @@ SET(CTEST_CUSTOM_WARNING_EXCEPTION
 
   # disable warnings from UI files.
   "ui_.*"
+
+  # disable warnings generate by documentation generating code.
+  "Warning:.*does not exist!.*Skipping it."
   )
 
 IF(APPLE)
@@ -165,6 +168,8 @@ ENDIF(APPLE)
 
 SET(CTEST_CUSTOM_COVERAGE_EXCLUDE
   ${CTEST_CUSTOM_COVERAGE_EXCLUDE}
+  "VTK[/\\]"
+  "./VTK"
   "Common.KWCommon.*"
   "vtk.*CSInit.cxx"
   "vtkKWParaViewInit.cxx"

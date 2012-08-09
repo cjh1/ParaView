@@ -42,10 +42,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "pqComponentsExport.h"
 #include <QWidget>
-#include <QTimer>
 #include <QMap>
 #include <QPointer>
 #include "pqProxy.h"
+#include "pqTimer.h"
 
 class pqObjectPanel;
 class QPushButton;
@@ -128,6 +128,7 @@ signals:
   void viewChanged(pqView*);
 
   void helpRequested(const QString& proxyType);
+  void helpRequested(const QString& groupname, const QString& proxyType);
 
   void canAccept();
 
@@ -157,7 +158,7 @@ private:
   QPushButton* DeleteButton;
   QPushButton* HelpButton;
   QPointer<pqView> View;
-  QTimer AutoAcceptTimer;
+  pqTimer AutoAcceptTimer;
   static bool AutoAccept;
   bool ShowOnAccept;
   pqOutputPort *OutputPort;

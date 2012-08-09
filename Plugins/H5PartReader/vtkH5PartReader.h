@@ -44,10 +44,10 @@
 #ifndef __vtkH5PartReader_h
 #define __vtkH5PartReader_h
 
-#include "vtkToolkits.h"     // For VTK_USE_MPI 
+#include "vtkPVConfig.h"     // For PARAVIEW_USE_MPI 
 #include "vtkPolyDataAlgorithm.h"
-#include <vtkstd/string>
-#include <vtkstd/vector>
+#include <string>
+#include <vector>
 
 class vtkDataArraySelection;
 class vtkMultiProcessController;
@@ -152,7 +152,7 @@ public:
   void        SetCoordinateArrayStatus(const char* name, int status);
 
 //BTX
-  #ifdef VTK_USE_MPI
+  #ifdef PARAVIEW_USE_MPI
 //ETX
 //BTX
     // Description:
@@ -183,7 +183,7 @@ protected:
   // velocity_0 returns 0, velocity_1 returns 0 etc
   int             IndexOfVectorComponent(const char *name);
 //BTX
-  vtkstd::string  NameOfVectorComponent(const char *name);
+  std::string  NameOfVectorComponent(const char *name);
 //ETX
   //
   // Internal Variables
@@ -207,9 +207,9 @@ protected:
   char         *Yarray;
   char         *Zarray;
   //BTX
-  vtkstd::vector<double>                  TimeStepValues;
-  typedef vtkstd::vector<vtkstd::string>  stringlist;
-  vtkstd::vector<stringlist>              FieldArrays;
+  std::vector<double>                  TimeStepValues;
+  typedef std::vector<std::string>  stringlist;
+  std::vector<stringlist>              FieldArrays;
   //ETX
 
   // To allow paraview gui to enable/disable scalar reading
@@ -219,7 +219,7 @@ protected:
   vtkDataArraySelection* CoordinateSelection;
 
   //BTX
-    #ifdef VTK_USE_MPI
+    #ifdef PARAVIEW_USE_MPI
   //ETX
       vtkMultiProcessController* Controller;
   //BTX

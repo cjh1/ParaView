@@ -126,7 +126,6 @@
 #include "vtkSMTextWidgetRepresentationProxy.h"
 #include "vtkSMTimeKeeper.h"
 #include "vtkSMTimeKeeperProxy.h"
-#include "vtkSMTwoDRenderViewProxy.h"
 #include "vtkSMUndoElement.h"
 #include "vtkSMUndoStack.h"
 #include "vtkSMUndoStackBuilder.h"
@@ -226,7 +225,7 @@ int main(int , char *[])
   PRINT_SELF(vtkSMProxyLink);
   PRINT_SELF(vtkSMProxyListDomain);
   PRINT_SELF(vtkSMProxyLocator);
-  PRINT_SELF(vtkSMProxyManager);
+  //PRINT_SELF(vtkSMProxyManager);
   PRINT_SELF(vtkSMProxyProperty);
   PRINT_SELF(vtkSMProxySelectionModel);
   PRINT_SELF(vtkSMPSWriterProxy);
@@ -258,7 +257,6 @@ int main(int , char *[])
   PRINT_SELF(vtkSMTextWidgetRepresentationProxy);
   PRINT_SELF(vtkSMTimeKeeper);
   PRINT_SELF(vtkSMTimeKeeperProxy);
-  PRINT_SELF(vtkSMTwoDRenderViewProxy);
   PRINT_SELF(vtkSMUndoElement);
   PRINT_SELF(vtkSMUndoStack);
   PRINT_SELF(vtkSMUndoStackBuilder);

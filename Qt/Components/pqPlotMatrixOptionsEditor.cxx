@@ -75,10 +75,10 @@ public:
   pqPlotMatrixOptionsChartSetting();
   ~pqPlotMatrixOptionsChartSetting() {}
 
+  QColor BackGroundColor;
   QColor AxisColor;
   QColor GridColor;
   QColor LabelColor;
-  QColor BackGroundColor;
   QFont LabelFont;
   int Notation;
   int Precision;
@@ -98,7 +98,8 @@ public:
   int getIndexForLocation(int location) const;
 
   QString CurrentPage;
-  
+  vtkVector2f Gutter;
+
   //Title properties
   QFont TitleFont;
   int TitleAlignment;
@@ -106,25 +107,23 @@ public:
   QColor TitleColor;
   QColor SelectedActiveScatterChartBGColor;
   QColor SelectedRowColumnScatterChartBGColor;
-  
+
   QMap<int, pqPlotMatrixOptionsChartSetting*> PlotData;
   int CurrentPlot;
   int Borders[4];
-  vtkVector2f Gutter;
 };
 
 //----------------------------------------------------------------------------
 pqPlotMatrixOptionsChartSetting::pqPlotMatrixOptionsChartSetting()
   : BackGroundColor(Qt::white),AxisColor(Qt::black), GridColor(Qt::lightGray),
     LabelColor(Qt::black), LabelFont("Arial", 12)
-{ 
+{
   this->Notation = 0;
   this->Precision = 2;
   this->ToolTipNotation = 0;
   this->ToolTipPrecision = 2;
   this->ShowGrid = true;
   this->ShowLabels = true;
-  
 }
 
 //----------------------------------------------------------------------------
@@ -137,7 +136,7 @@ pqPlotMatrixOptionsEditorForm::pqPlotMatrixOptionsEditorForm()
   this->PlotData[vtkScatterPlotMatrix::ACTIVEPLOT] = new pqPlotMatrixOptionsChartSetting();
   this->PlotData[vtkScatterPlotMatrix::SCATTERPLOT] = new pqPlotMatrixOptionsChartSetting();
   this->PlotData[vtkScatterPlotMatrix::HISTOGRAM] = new pqPlotMatrixOptionsChartSetting();
-  
+
   this->PlotData[vtkScatterPlotMatrix::ACTIVEPLOT]->BackGroundColor.fromRgbF(1.0, 1.0, 1.0, 0.0);
   this->PlotData[vtkScatterPlotMatrix::SCATTERPLOT]->BackGroundColor.fromRgbF(1.0, 1.0, 1.0, 0.0);
   this->PlotData[vtkScatterPlotMatrix::HISTOGRAM]->BackGroundColor.fromRgbF(0.5, 0.5, 0.5, 0.4);
@@ -184,7 +183,7 @@ pqPlotMatrixOptionsEditor::pqPlotMatrixOptionsEditor(QWidget *widgetParent)
 
   QObject::connect(this->Internal->Form->ShowAxisGrid, SIGNAL(toggled(bool)),
                    this, SLOT(setGridVisibility(bool)));
-                   
+
   QObject::connect(this->Internal->Form->BackgroundColor,
                   SIGNAL(chosenColorChanged(QColor)),
                   this, SLOT(setChartBackgroundColor(QColor)));
@@ -216,7 +215,7 @@ pqPlotMatrixOptionsEditor::pqPlotMatrixOptionsEditor(QWidget *widgetParent)
 
   // Connect up some signals and slots for the property links
   // These should really be cached locally
-  QObject::connect(this->Internal->Form->ChartTitle, SIGNAL(textEdited(QString)),
+  QObject::connect(this->Internal->Form->ChartTitle, SIGNAL(textChanged(QString)),
                    this, SIGNAL(changesAvailable()));
   QObject::connect(this->Internal->Form->LeftMargin, SIGNAL(valueChanged(int)),
     this, SIGNAL(changesAvailable()));
@@ -230,13 +229,15 @@ pqPlotMatrixOptionsEditor::pqPlotMatrixOptionsEditor(QWidget *widgetParent)
     this, SIGNAL(changesAvailable()));
   QObject::connect(this->Internal->Form->GutterY, SIGNAL(valueChanged(double)),
     this, SIGNAL(changesAvailable()));
-  QObject::connect(this->Internal->Form->selRowColBackgroundColor, 
+  QObject::connect(this->Internal->Form->selRowColBackgroundColor,
     SIGNAL(chosenColorChanged(QColor)),
     this, SIGNAL(changesAvailable()));
   QObject::connect(this->Internal->Form->selActiveBackgroundColor,
     SIGNAL(chosenColorChanged(QColor)),
     this, SIGNAL(changesAvailable()));
-
+  QObject::connect(this->Internal->Form->NumberOfFrames,
+                   SIGNAL(valueChanged(int)),
+                   this, SIGNAL(changesAvailable()));
 }
 
 pqPlotMatrixOptionsEditor::~pqPlotMatrixOptionsEditor()
@@ -277,29 +278,27 @@ void pqPlotMatrixOptionsEditor::setPage(const QString &page)
   QStringList path = page.split(".", QString::SkipEmptyParts);
   this->Internal->Form->CurrentPlot = vtkScatterPlotMatrix::NOPLOT;
 
+  this->Internal->Form->frameScatterPlot->setVisible(0);
   if(path[0] == "General")
     {
     widget = this->Internal->Form->GeneralPlot;
     this->Internal->Form->CurrentPlot = vtkScatterPlotMatrix::NOPLOT;
-    this->Internal->Form->frameChart->setVisible(0);
     }
   else
     {
-    this->Internal->Form->frameChart->setVisible(1);
-    
+    widget = this->Internal->Form->ActivePlot;
+
     if(path[0] == "Active Plot")
       {
-      widget = this->Internal->Form->ActivePlot;
       this->Internal->Form->CurrentPlot = vtkScatterPlotMatrix::ACTIVEPLOT;
       }
     else if(path[0] == "Scatter Plots")
       {
-      widget = this->Internal->Form->ScatterPlots;
+      this->Internal->Form->frameScatterPlot->setVisible(1);
       this->Internal->Form->CurrentPlot = vtkScatterPlotMatrix::SCATTERPLOT;
       }
     else if(path[0] == "Histogram Plots")
       {
-      widget = this->Internal->Form->HistogramPlots;
       this->Internal->Form->CurrentPlot = vtkScatterPlotMatrix::HISTOGRAM;
       }
     }
@@ -477,14 +476,14 @@ void pqPlotMatrixOptionsEditor::updateOptions()
   if(!proxy)
     {
     return;
-    } 
+    }
   // TODO: Update GUI from proxy
   this->blockSignals(true);
 
   // Use the server properties to update the options on the charts
   this->Internal->Form->Title = proxy->GetTitle();
   vtkTextProperty *prop = proxy->GetTitleProperties();
-  this->Internal->Form->TitleFont = 
+  this->Internal->Form->TitleFont =
     QFont(prop->GetFontFamilyAsString(),
           prop->GetFontSize(),
           prop->GetBold() ? QFont::Bold : -1,
@@ -497,7 +496,7 @@ void pqPlotMatrixOptionsEditor::updateOptions()
   this->Internal->Form->TitleColor = QColor::fromRgbF(rgba[0], rgba[1],
                                                      rgba[2], rgba[2]);
   this->Internal->Form->TitleAlignment = prop->GetJustification();
- 
+
   vtkColor4ub color;
   color = proxy->GetScatterPlotSelectedRowColumnColor();
   this->Internal->Form->SelectedRowColumnScatterChartBGColor =
@@ -505,17 +504,17 @@ void pqPlotMatrixOptionsEditor::updateOptions()
   color = proxy->GetScatterPlotSelectedActiveColor();
   this->Internal->Form->SelectedActiveScatterChartBGColor =
     QColor::fromRgb(color[0], color[1], color[2], color[3]);
-  
+
   vtkVector2f gutter;
   gutter = proxy->GetGutter();
   this->Internal->Form->Gutter.Set(gutter[0], gutter[1]);
-  
+
   int borders[4];
   proxy->GetBorders(borders);
   memcpy(this->Internal->Form->Borders, borders, sizeof(int));
 
   for(QMap<int, pqPlotMatrixOptionsChartSetting*>::iterator dataIt=
-    this->Internal->Form->PlotData.begin(); 
+    this->Internal->Form->PlotData.begin();
     dataIt!=this->Internal->Form->PlotData.end(); ++dataIt)
     {
     int plotType = dataIt.key();
@@ -563,12 +562,12 @@ void pqPlotMatrixOptionsEditor::applyChartOptions()
   if(!proxy)
     {
     return;
-    } 
+    }
 
   // title
   this->Internal->Form->Title = this->Internal->Form->ChartTitle->text();
   proxy->SetTitle(this->Internal->Form->Title.toAscii().constData());
-  this->Internal->Form->TitleAlignment = 
+  this->Internal->Form->TitleAlignment =
     this->Internal->Form->ChartTitleAlignment->currentIndex();
   vtkTextProperty *prop = proxy->GetTitleProperties();
   prop->SetJustification(this->Internal->Form->TitleAlignment);
@@ -587,22 +586,23 @@ void pqPlotMatrixOptionsEditor::applyChartOptions()
                  static_cast<double>(color.blueF()));
 
   // Gutter size
-  this->Internal->Form->Gutter.Set(
-    this->Internal->Form->GutterX->value(),
-    this->Internal->Form->GutterX->value());
+  this->Internal->Form->Gutter.Set(this->Internal->Form->GutterX->value(),
+                                   this->Internal->Form->GutterY->value());
   proxy->SetGutter(this->Internal->Form->Gutter);
+
+  // Set the number of frames - zero gives no transition effect.
+  proxy->SetNumberOfFrames(this->Internal->Form->NumberOfFrames->value());
 
   // Margin size
   this->Internal->Form->Borders[0]= this->Internal->Form->LeftMargin->value();
-  this->Internal->Form->Borders[1]=  this->Internal->Form->BottomMargin->value();
-  this->Internal->Form->Borders[2]=  this->Internal->Form->RightMargin->value();
-  this->Internal->Form->Borders[3]=  this->Internal->Form->TopMargin->value();
-  proxy->SetBorders(
-    this->Internal->Form->Borders[0],
-    this->Internal->Form->Borders[1],
-    this->Internal->Form->Borders[2],
-    this->Internal->Form->Borders[3]);
-  
+  this->Internal->Form->Borders[1]= this->Internal->Form->BottomMargin->value();
+  this->Internal->Form->Borders[2]= this->Internal->Form->RightMargin->value();
+  this->Internal->Form->Borders[3]= this->Internal->Form->TopMargin->value();
+  proxy->SetBorders(this->Internal->Form->Borders[0],
+                    this->Internal->Form->Borders[1],
+                    this->Internal->Form->Borders[2],
+                    this->Internal->Form->Borders[3]);
+
   // Scatter plot selection background color
   color = this->Internal->Form->selRowColBackgroundColor->chosenColor();
   this->Internal->Form->SelectedRowColumnScatterChartBGColor = color;
@@ -656,11 +656,11 @@ void pqPlotMatrixOptionsEditor::applyChartOptions()
                    static_cast<double>(color.blueF()));
     prop->SetOpacity(static_cast<double>(color.alphaF()));
     // Axis label font
-    QFont font = this->Internal->Form->PlotData[plotType]->LabelFont;
-    prop->SetFontFamilyAsString(font.family().toAscii().constData());
-    prop->SetFontSize(font.pointSize());
-    prop->SetBold(font.bold() ? 1 : 0);
-    prop->SetItalic(font.italic() ? 1 : 0);
+    QFont plotfont = this->Internal->Form->PlotData[plotType]->LabelFont;
+    prop->SetFontFamilyAsString(plotfont.family().toAscii().constData());
+    prop->SetFontSize(plotfont.pointSize());
+    prop->SetBold(plotfont.bold() ? 1 : 0);
+    prop->SetItalic(plotfont.italic() ? 1 : 0);
     // Axis label notation
     proxy->SetAxisLabelNotation(plotType,
       this->Internal->Form->PlotData[plotType]->Notation);
@@ -717,17 +717,17 @@ void pqPlotMatrixOptionsEditor::loadChartPage()
     this->Internal->Form->LabelPrecision->setValue(axis->Precision);
     this->Internal->Form->TooltipNotation->setCurrentIndex(axis->ToolTipNotation);
     this->Internal->Form->TooltipPrecision->setValue(axis->ToolTipPrecision);
-    this->blockSignals(false);
     }
+  this->blockSignals(false);
 }
 
-bool pqPlotMatrixOptionsEditor::pickFont(QLabel *label, QFont &font)
+bool pqPlotMatrixOptionsEditor::pickFont(QLabel *label, QFont &pfont)
 {
   bool ok = false;
-  font = QFontDialog::getFont(&ok, font, this);
+  pfont = QFontDialog::getFont(&ok, pfont, this);
   if(ok)
     {
-    this->updateDescription(label, font);
+    this->updateDescription(label, pfont);
     this->changesAvailable();
     return true;
     }

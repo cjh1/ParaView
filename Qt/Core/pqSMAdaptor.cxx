@@ -35,6 +35,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // qt includes
 #include <QString>
+#include <QtDebug>
 #include <QVariant>
 
 // vtk includes
@@ -44,13 +45,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 // server manager includes
 #include "vtkSMArrayListDomain.h"
+#include "vtkSMArrayRangeDomain.h"
 #include "vtkSMBooleanDomain.h"
 #include "vtkSMBoundsDomain.h"
+#include "vtkSMCompositeTreeDomain.h"
 #include "vtkSMDomainIterator.h"
 #include "vtkSMDoubleRangeDomain.h"
-#include "vtkSMArrayRangeDomain.h"
 #include "vtkSMDoubleVectorProperty.h"
 #include "vtkSMEnumerationDomain.h"
+#include "vtkSMExtentDomain.h"
+#include "vtkSMFileListDomain.h"
 #include "vtkSMIdTypeVectorProperty.h"
 #include "vtkSMInputProperty.h"
 #include "vtkSMIntRangeDomain.h"
@@ -58,21 +62,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkSMProperty.h"
 #include "vtkSMPropertyHelper.h"
 #include "vtkSMProxyGroupDomain.h"
-#include "vtkSMProxyGroupDomain.h"
 #include "vtkSMProxy.h"
 #include "vtkSMProxyListDomain.h"
-#include "vtkSMProxyManager.h"
 #include "vtkSMProxyProperty.h"
+#include "vtkSMSessionProxyManager.h"
+#include "vtkSMSILDomain.h"
 #include "vtkSMSourceProxy.h"
 #include "vtkSMStringListDomain.h"
 #include "vtkSMStringListRangeDomain.h"
 #include "vtkSMStringVectorProperty.h"
 #include "vtkSMUncheckedPropertyHelper.h"
 #include "vtkSMVectorProperty.h"
-#include "vtkSMExtentDomain.h"
-#include "vtkSMFileListDomain.h"
-#include "vtkSMCompositeTreeDomain.h"
-#include "vtkSMSILDomain.h"
 
 // ParaView includes
 #include "pqSMProxy.h"
@@ -351,7 +351,7 @@ QList<pqSMProxy> pqSMAdaptor::getProxyPropertyDomain(vtkSMProperty* Property)
   vtkSMProxyProperty* proxyProp = vtkSMProxyProperty::SafeDownCast(Property);
   if(proxyProp)
     {
-    vtkSMProxyManager* pm = Property->GetParent()->GetProxyManager();
+    vtkSMSessionProxyManager* pm = Property->GetParent()->GetSessionProxyManager();
     
     // get group domain of this property 
     // and add all proxies in those groups to our list
@@ -610,6 +610,75 @@ QList<QVariant> pqSMAdaptor::getSelectionProperty(vtkSMProperty* Property,
 }
 
 void pqSMAdaptor::setSelectionProperty(vtkSMProperty* Property,
+                                   QList<QVariant> value,
+                                   PropertyValueType Type)
+{
+  if(!Property)
+    {
+    return;
+    }
+
+  vtkSMStringListRangeDomain* StringDomain = NULL;
+
+  vtkSMDomainIterator* iter = Property->NewDomainIterator();
+  iter->Begin();
+  while(!iter->IsAtEnd())
+    {
+    vtkSMDomain* d = iter->GetDomain();
+    if(!StringDomain)
+      {
+      StringDomain = vtkSMStringListRangeDomain::SafeDownCast(d);
+      break;
+      }
+    iter->Next();
+    }
+  iter->Delete();
+  if (!StringDomain)
+    {
+    // unlike the other overload of setSelectionProperty(), this can only work
+    // with vtkSMStringListRangeDomain and not vtkSMStringListDomain or
+    // vtkSMEnumerationDomain. That's because for those domains we need the full
+    // list of elements to be updated correctly.
+    qCritical() << "Only vtkSMStringListRangeDomain are supported.";
+    return;
+    }
+
+  if (value.size() != 2)
+    {
+    qCritical() << "Method expected a list of pairs. Incorrect API." << endl;
+    return;
+    }
+
+  QList<QVariant> current_value = pqSMAdaptor::getMultipleElementProperty(
+    Property, Type);
+
+  QString name = value[0].toString();
+  QVariant status = value[1];
+  if (status.type() == QVariant::Bool)
+    {
+    status = status.toInt();
+    }
+
+  bool name_found = false;
+  for (int cc=0; (cc+1) < current_value.size(); cc++)
+    {
+    if (current_value[cc].toString() == name)
+      {
+      current_value[cc+1] = status;
+      name_found = true;
+      break;
+      }
+    }
+  if (!name_found)
+    {
+    current_value.push_back(name);
+    current_value.push_back(status);
+    }
+
+  pqSMAdaptor::setMultipleElementProperty(Property, current_value, Type);
+}
+
+void pqSMAdaptor::setSelectionProperty(vtkSMProperty* Property,
                                        QList<QList<QVariant> > Value,
                                        PropertyValueType Type)
 {
@@ -617,26 +686,9 @@ void pqSMAdaptor::setSelectionProperty(vtkSMProperty* Property,
     {
     return;
     }
-  
-  foreach(QList<QVariant> l, Value)
-    {
-    pqSMAdaptor::setSelectionProperty(Property, l, Type);
-    }
-}
 
-void pqSMAdaptor::setSelectionProperty(vtkSMProperty* Property, 
-                                       QList<QVariant> Value,
-                                       PropertyValueType Type)
-{
+  QList<QVariant> sm_value;
 
-  if(!Property || Value.size() != 2)
-    {
-    return;
-    }
-
-  vtkSMVectorProperty* VectorProperty =
-    vtkSMVectorProperty::SafeDownCast(Property);
-  
   vtkSMStringListRangeDomain* StringDomain = NULL;
   vtkSMStringListDomain* StringListDomain = NULL;
   vtkSMEnumerationDomain* EnumerationDomain = NULL;
@@ -661,122 +713,45 @@ void pqSMAdaptor::setSelectionProperty(vtkSMProperty* Property,
     iter->Next();
     }
   iter->Delete();
-  
-  vtkSMStringVectorProperty* StringProperty;
-  StringProperty = vtkSMStringVectorProperty::SafeDownCast(Property);
-  if(StringProperty && StringDomain)
+
+  foreach(QList<QVariant> value, Value)
     {
-    QString name = Value[0].toString();
-    QVariant value = Value[1];
-    if(value.type() == QVariant::Bool)
+    if (value.size() != 2)
       {
-      value = value.toInt();
+      qCritical() << "Method expected a list of pairs. Incorrect API." << endl;
       }
-    QString valueStr = value.toString();
-    unsigned int numElems;
 
-    if(Type == CHECKED)
+    if (StringDomain)
       {
-      numElems = StringProperty->GetNumberOfElements();
-      if (numElems % 2 != 0)
+      QString name = value[0].toString();
+      QVariant status = value[1];
+      if (status.type() == QVariant::Bool)
         {
-        return;
+        status = status.toInt();
         }
-      unsigned int i;
-      for(i=0; i<numElems; i+=2)
-        {
-        if(name == StringProperty->GetElement(i))
-          {
-          StringProperty->SetElement(i+1, valueStr.toAscii().data());
-          return;
-          }
-        }
-
-      // Not found, add it...
-      // We will create a vtkStringList for the name,value pair and then
-      // set the string values in one atomic call.
-      vtkSmartPointer<vtkStringList> stringValues = vtkSmartPointer<vtkStringList>::New();
-      StringProperty->GetElements(stringValues);
-      numElems = stringValues->GetLength();
-
-      // First look for an empty slot to add the values
-      for(i=0; i<numElems; i+=2)
-        {
-        const char* elem = StringProperty->GetElement(i);
-        if(!elem || elem[0] == '\0')
-          {
-          stringValues->SetString(i, name.toAscii().data());
-          stringValues->SetString(i+1, valueStr.toAscii().data());
-          StringProperty->SetElements(stringValues);
-          return;
-          }
-        }
-
-      // Add the values at the end
-      stringValues->SetString(numElems, name.toAscii().data());
-      stringValues->SetString(numElems+1, valueStr.toAscii().data());
-      StringProperty->SetElements(stringValues);
+      sm_value.push_back(name);
+      sm_value.push_back(status);
       }
-    else if(Type == UNCHECKED)
+    else if(EnumerationDomain)
       {
-      numElems = StringProperty->GetNumberOfUncheckedElements();
-      if (numElems % 2 != 0)
+      QList<QVariant> domainStrings =
+        pqSMAdaptor::getEnumerationPropertyDomain(Property);
+      int idx = domainStrings.indexOf(value[0]);
+      if (value[1].toInt() && idx != -1)
         {
-        return;
+        sm_value.push_back(EnumerationDomain->GetEntryValue(idx));
         }
-      unsigned int i;
-      for(i=0; i<numElems; i+=2)
+      }
+    else if(StringListDomain)
+      {
+      if (value[1].toInt())
         {
-        if(name == StringProperty->GetUncheckedElement(i))
-          {
-          StringProperty->SetUncheckedElement(i+1, valueStr.toAscii().data());
-          Property->UpdateDependentDomains();
-          return;
-          }
+        sm_value.push_back(value[0]);
         }
-      // not found, just put it in the first empty slot
-      for(i=0; i<numElems; i+=2)
-        {
-        const char* elem = StringProperty->GetUncheckedElement(i);
-        if(!elem || elem[0] == '\0')
-          {
-          StringProperty->SetUncheckedElement(i, name.toAscii().data());
-          StringProperty->SetUncheckedElement(i+1, valueStr.toAscii().data());
-          Property->UpdateDependentDomains();
-          return;
-          }
-        }
-      // If we didn't find any empty spots, append to the vector
-      StringProperty->SetUncheckedElement(numElems, name.toAscii().data());
-      StringProperty->SetUncheckedElement(numElems+1, valueStr.toAscii().data());
-      Property->UpdateDependentDomains();
       }
     }
-  else if(EnumerationDomain)
-    {
-    QList<QVariant> domainStrings =
-      pqSMAdaptor::getEnumerationPropertyDomain(Property);
-    int idx = domainStrings.indexOf(Value[0]);
-    if(Value[1].toInt() && idx != -1)
-      {
-      pqSMAdaptor::setMultipleElementProperty(VectorProperty,
-                                              VectorProperty->GetNumberOfElements(),
-                                              EnumerationDomain->GetEntryValue(idx),
-                                              Type);
-      }
-    }
-  else if(StringListDomain)
-    {
-    QList<QVariant> values =
-      pqSMAdaptor::getMultipleElementProperty(Property, Type);
-    if(Value[1].toInt() && !values.contains(Value[0]))
-      {
-      pqSMAdaptor::setMultipleElementProperty(Property,
-                                              values.size(),
-                                              Value[0],
-                                              Type);
-      }
-    }
+
+  pqSMAdaptor::setMultipleElementProperty(Property, sm_value, Type);
 }
 
 QList<QVariant> pqSMAdaptor::getSelectionPropertyDomain(vtkSMProperty* Property)
@@ -1314,7 +1289,7 @@ void pqSMAdaptor::setMultipleElementProperty(vtkSMProperty* Property,
   else if(svp)
     {
     const char** cvalues = new const char*[num];
-    vtkstd::string *str_values= new vtkstd::string[num];
+    std::string *str_values= new std::string[num];
     for (int cc=0; cc < num; cc++)
       {
       str_values[cc] = Value[cc].toString().toAscii().data();
@@ -1465,11 +1440,25 @@ QVariant pqSMAdaptor::getMultipleElementProperty(vtkSMProperty* Property,
 
   if(Type == CHECKED)
     {
-    variant = vtkSMPropertyHelper(Property).GetAsVariant(Index);
+    if (vtkSMPropertyHelper(Property).GetNumberOfElements() > Index)
+      {
+      variant = vtkSMPropertyHelper(Property).GetAsVariant(Index);
+      }
+    else
+      {
+      return QVariant();
+      }
     }
   else if(Type == UNCHECKED)
     {
-    variant = vtkSMUncheckedPropertyHelper(Property).GetAsVariant(Index);
+    if (vtkSMUncheckedPropertyHelper(Property).GetNumberOfElements() > Index)
+      {
+      variant = vtkSMUncheckedPropertyHelper(Property).GetAsVariant(Index);
+      }
+    else
+      {
+      return QVariant();
+      }
     }
 
   return convertToQVariant(variant);
@@ -1701,6 +1690,94 @@ void pqSMAdaptor::setFileListProperty(vtkSMProperty* Property,
   if(Type == UNCHECKED)
     {
     Property->UpdateDependentDomains();
+    }
+}
+
+QStringList pqSMAdaptor::getFieldSelection(vtkSMProperty *Property,
+                                           PropertyValueType Type)
+{
+  vtkSMStringVectorProperty *StringVectorProperty =
+    vtkSMStringVectorProperty::SafeDownCast(Property);
+  vtkSMEnumerationDomain* domain =
+    vtkSMEnumerationDomain::SafeDownCast(StringVectorProperty->GetDomain("field_list"));
+
+  QString mode;
+  QString scalars;
+
+  if(StringVectorProperty && domain)
+    {
+    int which;
+
+    if(Type == CHECKED)
+      {
+      which = QString(StringVectorProperty->GetElement(3)).toInt();
+      }
+    else if(Type == UNCHECKED)
+      {
+      which = QString(StringVectorProperty->GetUncheckedElement(3)).toInt();
+      }
+
+    for(unsigned int i = 0; i < domain->GetNumberOfEntries(); i++)
+      {
+      if(domain->GetEntryValue(i) == which)
+        {
+        mode = domain->GetEntryText(i);
+        break;
+        }
+      }
+
+    if(Type == CHECKED)
+      {
+      scalars = StringVectorProperty->GetElement(4);
+      }
+    else if(Type == UNCHECKED)
+      {
+      scalars = StringVectorProperty->GetUncheckedElement(4);
+      }
+    }
+
+  QStringList selection;
+  selection.append(mode);
+  selection.append(scalars);
+  return selection;
+}
+
+void pqSMAdaptor::setFieldSelection(vtkSMProperty *prop,
+                                    const QStringList &Value,
+                                    PropertyValueType Type)
+{
+  vtkSMStringVectorProperty* Property =
+    vtkSMStringVectorProperty::SafeDownCast(prop);
+  vtkSMEnumerationDomain* domain =
+    vtkSMEnumerationDomain::SafeDownCast(prop->GetDomain("field_list"));
+
+  if(Value.size() != 2)
+    {
+    return;
+    }
+
+  if(Property && domain)
+    {
+    for(unsigned int i = 0; i < domain->GetNumberOfEntries(); i++)
+      {
+      if(Value[0] == domain->GetEntryText(i))
+        {
+        const char *text = QString("%1").arg(domain->GetEntryValue(i)).toAscii().data();
+
+        if(Type == CHECKED)
+          {
+          Property->SetElement(3, text);
+          Property->SetElement(4, Value[1].toAscii().data());
+          }
+        else if(Type == UNCHECKED)
+          {
+          Property->SetUncheckedElement(3, text);
+          Property->SetUncheckedElement(4, Value[1].toAscii().data());
+          Property->UpdateDependentDomains();
+          }
+        break;
+        }
+      }
     }
 }
 

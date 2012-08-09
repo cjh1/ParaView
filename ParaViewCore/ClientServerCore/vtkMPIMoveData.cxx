@@ -34,11 +34,15 @@
 #include "vtkMPIMToNSocketConnection.h"
 #include "vtkMultiBlockDataSet.h"
 #include "vtkMultiProcessController.h"
+#include "vtkNew.h"
+#include "vtkNonOverlappingAMR.h"
 #include "vtkObjectFactory.h"
 #include "vtkOutlineFilter.h"
+#include "vtkOverlappingAMR.h"
 #include "vtkPointData.h"
 #include "vtkPolyData.h"
 #include "vtkProcessModule.h"
+#include "vtkPVConfig.h"
 #include "vtkPVSession.h"
 #include "vtkSmartPointer.h"
 #include "vtkSocketCommunicator.h"
@@ -46,23 +50,26 @@
 #include "vtkStreamingDemandDrivenPipeline.h"
 #include "vtkTimerLog.h"
 #include "vtkToolkits.h"
+#include "vtkTrivialProducer.h"
 #include "vtkUndirectedGraph.h"
 #include "vtkUnstructuredGrid.h"
+
 #include "vtk_zlib.h"
 #include <vtksys/ios/sstream>
+#include <vector>
 
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
 #include "vtkMPICommunicator.h"
 #include "vtkAllToNRedistributeCompositePolyData.h"
 #endif
 
-#include <vtkstd/vector>
+#include <vector>
 
 bool vtkMPIMoveData::UseZLibCompression = false;
 
 namespace
 {
-  static bool vtkMPIMoveDataMerge(vtkstd::vector<vtkSmartPointer<vtkDataObject> >& pieces,
+  static bool vtkMPIMoveDataMerge(std::vector<vtkSmartPointer<vtkDataObject> >& pieces,
     vtkDataObject* result)
     {
     if (pieces.size() == 0)
@@ -76,7 +83,7 @@ namespace
       vtkImageData* id = vtkImageData::SafeDownCast(pieces[0]);
       if (id)
         {
-        result->SetWholeExtent(
+        vtkStreamingDemandDrivenPipeline::SetWholeExtent(result->GetInformation(),
           static_cast<vtkImageData*>(pieces[0].GetPointer())->GetExtent());
         }
       return true;
@@ -103,20 +110,17 @@ namespace
       // graph has to be handled separately because it doesn't have the standard
       // append-filter API.
       vtkMergeGraphs* mergegraphs = vtkMergeGraphs::New();
-      mergegraphs->SetInput(0, pieces[0]);
-      vtkstd::vector<vtkSmartPointer<vtkDataObject> >::iterator iter =
+      mergegraphs->SetInputData(0, pieces[0]);
+      std::vector<vtkSmartPointer<vtkDataObject> >::iterator iter =
         pieces.begin();
       iter++;
       for ( ; iter != pieces.end(); ++iter)
         {
-        mergegraphs->SetInput(1, iter->GetPointer());
+        mergegraphs->SetInputData(1, iter->GetPointer());
         mergegraphs->Update();
 
         vtkGraph* mergeResult = mergegraphs->GetOutput();
-        vtkGraph* clone = mergeResult->NewInstance();
-        clone->ShallowCopy(mergeResult);
-        mergegraphs->SetInput(0, clone);
-        clone->FastDelete();
+        mergegraphs->SetInputData(0, mergeResult);
         }
       vtkDataObject* mergeResult = mergegraphs->GetInputDataObject(0, 0);
       result->ShallowCopy(mergeResult);
@@ -135,17 +139,21 @@ namespace
       result->ShallowCopy(pieces[0]);
       return false;
       }
-
-    vtkstd::vector<vtkSmartPointer<vtkDataObject> >::iterator iter;
-    for (iter = pieces.begin(); iter != pieces.end(); ++iter)
+    std::vector<vtkSmartPointer<vtkDataObject> >::iterator iter;
+    for (iter = pieces.begin();
+         iter != pieces.end();
+        ++iter)
       {
       vtkDataSet* ds = vtkDataSet::SafeDownCast(iter->GetPointer());
+      
       if (ds && ds->GetNumberOfPoints() == 0)
         {
         // skip empty pieces.
         continue;
         }
-      appender->AddInputConnection(0, iter->GetPointer()->GetProducerPort());
+      vtkNew<vtkTrivialProducer> tp;
+      tp->SetOutput(iter->GetPointer());
+      appender->AddInputConnection(0, tp->GetOutputPort());
       }
     appender->Update();
     result->ShallowCopy(appender->GetOutputDataObject(0));
@@ -187,8 +195,6 @@ vtkMPIMoveData::vtkMPIMoveData()
 
   this->UpdateNumberOfPieces = 0;
   this->UpdatePiece = 0;
-
-  this->DeliverOutlineToClient = 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -320,6 +326,22 @@ int vtkMPIMoveData::RequestDataObject(vtkInformation*,
       }
     outputCopy = vtkMultiBlockDataSet::New();
     }
+  else if (this->OutputDataType == VTK_OVERLAPPING_AMR)
+    {
+    if (output && output->IsA("vtkOverlappingAMR"))
+      {
+      return 1;
+      }
+    outputCopy = vtkOverlappingAMR::New();
+    }
+  else if (this->OutputDataType == VTK_NON_OVERLAPPING_AMR)
+    {
+    if (output && output->IsA("vtkNonOverlappingAMR"))
+      {
+      return 1;
+      }
+    outputCopy = vtkNonOverlappingAMR::New();
+    }
   else
     {
     vtkErrorMacro("Unrecognized output type: " << this->OutputDataType
@@ -327,7 +349,7 @@ int vtkMPIMoveData::RequestDataObject(vtkInformation*,
     return 0;
     }
 
-  outputCopy->SetPipelineInformation(outputVector->GetInformationObject(0));
+  outputVector->GetInformationObject(0)->Set(vtkDataObject::DATA_OBJECT(), outputCopy);
   outputCopy->Delete();
   return 1;
 }
@@ -351,6 +373,46 @@ int vtkMPIMoveData::RequestInformation(vtkInformation*,
     vtkStreamingDemandDrivenPipeline::MAXIMUM_NUMBER_OF_PIECES(), -1);
 
   return 1;
+}
+
+//-----------------------------------------------------------------------------
+bool vtkMPIMoveData::GetOutputGeneratedOnProcess()
+{
+  switch (this->Server)
+    {
+  case vtkMPIMoveData::RENDER_SERVER:
+    // if this->Server is RENDER_SERVER, then we are in a true client-ds-rs
+    // configuration. In that case, the data is valid only when movemode is
+    // clone or pass-thru.
+    return (this->MoveMode == PASS_THROUGH ||
+      this->MoveMode == CLONE ||
+      this->MoveMode == COLLECT_AND_PASS_THROUGH);
+
+  case vtkMPIMoveData::DATA_SERVER:
+    // if this->Server is DATA_SERVER, we may be in cs or cdsrs modes.
+    if (this->MPIMToNSocketConnection)
+      {
+      // definitely in render-server mode. This process never generates data.
+      return false;
+      }
+    return (this->MoveMode == PASS_THROUGH ||
+      this->MoveMode == CLONE ||
+      this->MoveMode == COLLECT_AND_PASS_THROUGH);
+
+  case vtkMPIMoveData::CLIENT:
+      if (this->ClientDataServerSocketController)
+        {
+        // client.
+        return (this->MoveMode == COLLECT ||
+          this->MoveMode == CLONE ||
+          this->MoveMode == COLLECT_AND_PASS_THROUGH);
+        }
+      // built-in mode; ofcourse we have data.
+      return true;
+    }
+
+  vtkErrorMacro("Invalid setup. Is vtkMPIMoveData initialized yet?");
+  return false;
 }
 
 //-----------------------------------------------------------------------------
@@ -638,15 +700,12 @@ void vtkMPIMoveData::DataServerAllToN(vtkDataObject* input,
     }
 
   // Perform the M to N operation.
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
    vtkAllToNRedistributeCompositePolyData* AllToN = NULL;
-   vtkDataObject* inputCopy = input->NewInstance();
-   inputCopy->ShallowCopy(input);
    AllToN = vtkAllToNRedistributeCompositePolyData::New();
    AllToN->SetController(controller);
    AllToN->SetNumberOfProcesses(n);
-   AllToN->SetInput(inputCopy);
-   inputCopy->Delete();
+   AllToN->SetInputData(input);
    AllToN->Update();
    output->ShallowCopy(AllToN->GetOutputDataObject(0));
    AllToN->Delete();
@@ -669,7 +728,7 @@ void vtkMPIMoveData::DataServerGatherAll(vtkDataObject* input,
     return;
     }
 
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
   int idx;
   vtkMPICommunicator* com = vtkMPICommunicator::SafeDownCast(
                                          this->Controller->GetCommunicator());
@@ -735,7 +794,7 @@ void vtkMPIMoveData::DataServerGatherToZero(vtkDataObject* input,
 
     vtkTimerLog::MarkStartEvent("Dataserver gathering to 0");
 
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
   int idx;
   int myId= this->Controller->GetLocalProcessId();
   vtkMPICommunicator* com = vtkMPICommunicator::SafeDownCast(
@@ -933,31 +992,8 @@ void vtkMPIMoveData::DataServerSendToClient(vtkDataObject* output)
   if (myId == 0)
     {
     vtkTimerLog::MarkStartEvent("Dataserver sending to client");
-
-    vtkSmartPointer<vtkDataObject> tosend = output;
-    if (this->DeliverOutlineToClient)
-      {
-      // reduce data using outline filter.
-      if (output->IsA("vtkPolyData") || output->IsA("vtkMultiBlockDataSet"))
-        {
-        vtkDataObject* clone = output->NewInstance();
-        clone->ShallowCopy(output);
-
-        vtkOutlineFilter* filter = vtkOutlineFilter::New();
-        filter->SetInput(clone);
-        filter->Update();
-        tosend = filter->GetOutputDataObject(0);
-        filter->Delete();
-        clone->Delete();
-        }
-      else
-        {
-        vtkErrorMacro("DeliverOutlineToClient can only be used for vtkPolyData.");
-        }
-      }
-
     this->ClearBuffer();
-    this->MarshalDataToBuffer(tosend);
+    this->MarshalDataToBuffer(output);
     this->ClientDataServerSocketController->Send(
                                      &(this->NumberOfBuffers), 1, 1, 23490);
     this->ClientDataServerSocketController->Send(this->BufferLengths,
@@ -1011,7 +1047,7 @@ void vtkMPIMoveData::RenderServerZeroBroadcast(vtkDataObject* data)
     return;
     }
 
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
   int myId= this->Controller->GetLocalProcessId();
 
   vtkMPICommunicator* com = vtkMPICommunicator::SafeDownCast(
@@ -1100,10 +1136,7 @@ void vtkMPIMoveData::MarshalDataToBuffer(vtkDataObject* data)
 
   // Copy input to isolate reader from the pipeline.
   vtkDataWriter* writer = vtkGenericDataObjectWriter::New();
-  vtkDataObject* d = data->NewInstance();
-  d->ShallowCopy(data);
-  writer->SetInput(d);
-  d->Delete();
+  writer->SetInputData(data);
   if (imageData)
     {
     // We add the image extents to the header, since the writer doesn't preserve
@@ -1120,6 +1153,7 @@ void vtkMPIMoveData::MarshalDataToBuffer(vtkDataObject* data)
     stream << " ORIGIN: " << origin[0] << " " << origin[1] << " " << origin[2];
     writer->SetHeader(stream.str().c_str());
     }
+
   writer->SetFileTypeToBinary();
   writer->WriteToOutputStringOn();
   writer->Write();
@@ -1181,7 +1215,7 @@ void vtkMPIMoveData::ReconstructDataFromBuffer(vtkDataObject* data)
     }
 
   bool is_image_data = data->IsA("vtkImageData") != 0;
-  vtkstd::vector<vtkSmartPointer<vtkDataObject> > pieces;
+  std::vector<vtkSmartPointer<vtkDataObject> > pieces;
 
   for (int idx = 0; idx < this->NumberOfBuffers; ++idx)
     {
@@ -1264,8 +1298,6 @@ void vtkMPIMoveData::PrintSelf(ostream& os, vtkIndent indent)
   os << indent << "NumberOfBuffers: " << this->NumberOfBuffers << endl;
   os << indent << "Server: " << this->Server << endl;
   os << indent << "MoveMode: " << this->MoveMode << endl;
-  os << indent << "DeliverOutlineToClient : "
-    << this->DeliverOutlineToClient << endl;
   os << indent << "OutputDataType: ";
   if (this->OutputDataType == VTK_POLY_DATA)
     {

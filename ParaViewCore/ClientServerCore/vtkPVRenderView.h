@@ -12,53 +12,43 @@
      PURPOSE.  See the above copyright notice for more information.
 
 =========================================================================*/
-// .NAME vtkPVRenderView
+// .NAME vtkPVRenderView - Render View for ParaView.
 // .SECTION Description
-// vtkRenderViewBase equivalent that is specialized for ParaView. Eventually
-// vtkRenderViewBase should have a abstract base-class that this will derive from
-// instead of vtkRenderViewBase since we do not use the labelling/icon stuff from
-// vtkRenderViewBase.
-
-// FIXME: Following is temporary -- until I decide if that's necessary at all.
-// vtkPVRenderView has two types of public methods:
-// 1. @CallOnAllProcessess -- must be called on all processes with exactly the
-//                            same values.
-// 2. @CallOnClientOnly    -- can be called only on the "client" process. These
-//                            typically encapsulate client-side logic such as
-//                            deciding if we are doing remote rendering or local
-//                            rendering etc.
-
-// Utkarsh: Try to use methods that will be called on all processes for most
-// decision making similar to what ResetCamera() does. This will avoid the need
-// to have special code in vtkSMRenderViewProxy and will simplify life when
-// creating new views. "Move logic to VTK" -- that's the Mantra.
+// vtkRenderView equivalent that is specialized for ParaView. vtkRenderView
+// handles polygonal rendering for ParaView in all the different modes of
+// operation. vtkPVRenderView instance must be created on all involved
+// processes. vtkPVRenderView uses the information about what process it has
+// been created on to decide what part of the "rendering" happens on the
+// process.
 #ifndef __vtkPVRenderView_h
 #define __vtkPVRenderView_h
 
 #include "vtkPVView.h"
+#include "vtkBoundingBox.h" // needed for iVar
 
-class vtkBSPCutsGenerator;
+class vtkAlgorithmOutput;
 class vtkCamera;
 class vtkCameraManipulator;
 class vtkInformationDoubleKey;
+class vtkInformationDoubleVectorKey;
 class vtkInformationIntegerKey;
-class vtkInformationObjectBaseKey;
-class vtkInformationRequestKey;
 class vtkInteractorStyleRubberBand3D;
 class vtkInteractorStyleRubberBandZoom;
 class vtkLight;
 class vtkLightKit;
-class vtkPVHardwareSelector;
+class vtkMatrix4x4;
 class vtkProp;
 class vtkPVAxesWidget;
 class vtkPVCenterAxesActor;
+class vtkPVDataRepresentation;
 class vtkPVGenericRenderWindowInteractor;
+class vtkPVHardwareSelector;
 class vtkPVInteractorStyle;
 class vtkPVSynchronizedRenderer;
-class vtkPVSynchronizedRenderWindows;
 class vtkRenderer;
 class vtkRenderViewBase;
 class vtkRenderWindow;
+class vtkPVDataDeliveryManager;
 class vtkTexture;
 
 class VTK_EXPORT vtkPVRenderView : public vtkPVView
@@ -117,28 +107,6 @@ public:
   // Description:
   // Returns the render window.
   vtkRenderWindow* GetRenderWindow();
-
-  // Description:
-  // It's possible to directly add vtkProps to a view. This API provides access
-  // to add props to the 3D/composited renderer. Note that if you add props in
-  // this way, they will not be included in the computations for geometry-size
-  // which is used to make decisions whether to use LOD or remote rendering etc.
-  // Nor can such props participate in data-redistribution when volume rendering
-  // or translucent rendering. As a rule of thumb only add props not directly
-  // connected to input data using this API such as scalar bars, cube axes etc.
-  void AddPropToRenderer(vtkProp*);
-  void RemovePropFromRenderer(vtkProp*);
-
-  // Description:
-  // It's possible to directly add vtkProps to a view. This API provides access
-  // to add props to the non-composited renderer. Note that if you add props in
-  // this way, they will not be included in the computations for geometry-size
-  // which is used to make decisions whether to use LOD or remote rendering etc.
-  // Nor can such props participate in data-redistribution when volume rendering
-  // or translucent rendering. As a rule of thumb only add props not directly
-  // connected to input data using this API such as scalar bars, cube axes etc.
-  void AddPropToNonCompositedRenderer(vtkProp*);
-  void RemovePropFromNonCompositedRenderer(vtkProp*);
 
   // Description:
   // Returns the interactor. .
@@ -206,12 +174,12 @@ public:
   vtkGetMacro(LODResolution, double);
 
   // Description:
-  // This threshold is only applicable when in client-server mode. It is the size
-  // of geometry in megabytes beyond which the view should not deliver geometry
-  // to the client, but only outlines.
-  // @CallOnAllProcessess
-  vtkSetMacro(ClientOutlineThreshold, double);
-  vtkGetMacro(ClientOutlineThreshold, double);
+  // When set to true, instead of using simplified geometry for LOD rendering,
+  // uses outline, if possible. Note that not all representations support this
+  // mode and hence one may still see non-outline data being rendering when this
+  // flag is ON and LOD is being used.
+  vtkSetMacro(UseOutlineForLODRendering, bool);
+  vtkGetMacro(UseOutlineForLODRendering, bool);
 
   // Description:
   // Passes the compressor configuration to the client-server synchronizer, if
@@ -235,59 +203,28 @@ public:
   vtkBooleanMacro(UseLightKit, bool);
 
   // Description:
-  // vtkDataRepresentation can use this key to publish meta-data about geometry
-  // size in the VIEW_REQUEST_METADATA pass. If this meta-data is available,
-  // then the view can make informed decisions about where to render/whether to
-  // use LOD etc.
-  static vtkInformationIntegerKey* GEOMETRY_SIZE();
+  // EXPERIMENTAL: Components of the streaming API for the render view. This is
+  // still under development.
+  unsigned int GetNextPieceToDeliver(double planes[24]);
+  void StreamingUpdate();
 
-  // DATA_DISTRIBUTION_MODE indicates where the geometry/data is to be
-  // delivered for the current render/update.
-  static vtkInformationIntegerKey* DATA_DISTRIBUTION_MODE();
-
+  // Description:
   // USE_LOD indicates if LOD is being used for the current render/update.
   static vtkInformationIntegerKey* USE_LOD();
 
-  // DELIVER_LOD_TO_CLIENT is not used currently. I am just defining it as a
-  // placeholder. Currently tile-displays don't have the mode in which only LOD
-  // is delivered to the client.
-  static vtkInformationIntegerKey* DELIVER_LOD_TO_CLIENT();
-
-  // DELIVER_OUTLINE_TO_CLIENT is used to tile-display mode which tells the
-  // delivery filters to always delivery outline to the client.
-  static vtkInformationIntegerKey* DELIVER_OUTLINE_TO_CLIENT();
-
-  // the difference between DELIVER_OUTLINE_TO_CLIENT_FOR_LOD and
-  // DELIVER_OUTLINE_TO_CLIENT is that DELIVER_OUTLINE_TO_CLIENT_FOR_LOD implies
-  // that only the LOD delivery filters should deliver outline, but use normal
-  // pipeline when delivering full res geometry.
-  static vtkInformationIntegerKey* DELIVER_OUTLINE_TO_CLIENT_FOR_LOD();
+  // Description:
+  // Indicates the LOD resolution in REQUEST_UPDATE_LOD() pass.
   static vtkInformationDoubleKey* LOD_RESOLUTION();
 
   // Description:
-  // This view supports ordered compositing, if needed. When ordered compositing
-  // needs to be employed, this view requires that all representations
-  // redistribute the data using a KdTree. To tell the view of the vtkAlgorithm
-  // that is producing some redistributable data, representation can use this
-  // key in their REQUEST_INFORMATION() pass to put the producer in the
-  // outInfo.
-  static vtkInformationObjectBaseKey* REDISTRIBUTABLE_DATA_PRODUCER();
+  // Indicates the LOD must use outline if possible in REQUEST_UPDATE_LOD()
+  // pass.
+  static vtkInformationIntegerKey* USE_OUTLINE_FOR_LOD();
 
   // Description:
   // Representation can publish this key in their REQUEST_INFORMATION() pass to
   // indicate that the representation needs ordered compositing.
   static vtkInformationIntegerKey* NEED_ORDERED_COMPOSITING();
-
-  // Description:
-  // This is used by the view in the REQUEST_RENDER() pass to tell the
-  // representations the KdTree, if any to use for distributing the data. If
-  // none is present, then representations should not redistribute the data.
-  static vtkInformationObjectBaseKey* KD_TREE();
-
-  // Description:
-  // Placed in REQUEST_PREPARE_FOR_RENDER() stage to indicate that the
-  // representation needs delivery.
-  static vtkInformationIntegerKey* NEEDS_DELIVERY();
 
   // Description:
   // Make a selection. This will result in setting up of this->LastSelection
@@ -357,9 +294,41 @@ public:
   // @CallOnClientOnly
   double GetZbufferDataAtPoint(int x, int y);
 
-public:
-  //*****************************************************************
-  // Methods merely exposing methods for internal objects.
+  // Description:
+  // Convenience methods used by representations to pass represented data.
+  static void SetPiece(vtkInformation* info,
+    vtkPVDataRepresentation* repr, vtkDataObject* data);
+  static vtkAlgorithmOutput* GetPieceProducer(vtkInformation* info,
+    vtkPVDataRepresentation* repr);
+  static void SetPieceLOD(vtkInformation* info,
+    vtkPVDataRepresentation* repr, vtkDataObject* data);
+  static vtkAlgorithmOutput* GetPieceProducerLOD(vtkInformation* info,
+    vtkPVDataRepresentation* repr);
+  static void SetDeliverToAllProcesses(
+    vtkInformation* info, vtkPVDataRepresentation* repr, bool clone);
+  static void SetDeliverLODToAllProcesses(
+    vtkInformation* info, vtkPVDataRepresentation* repr, bool clone);
+  static void MarkAsRedistributable(
+    vtkInformation* info, vtkPVDataRepresentation* repr);
+  static void SetGeometryBounds(vtkInformation* info,
+    double bounds[6], vtkMatrix4x4* transform = NULL);
+  static void SetStreamable(
+    vtkInformation* info, vtkPVDataRepresentation* repr, bool streamable);
+
+  // Description:
+  // Hack to pass along image data producer to use to generate the KdTree cuts
+  // when volume rendering image data. This code needs refactoring.
+  static void SetImageDataProducer(
+    vtkInformation* info, vtkPVDataRepresentation* repr, vtkAlgorithmOutput*);
+
+  // Description:
+  // Representations that support hardware (render-buffer based) selection,
+  // should register the prop that they use for selection rendering. They can do
+  // that in the vtkPVDataRepresentation::AddToView() implementation.
+  void RegisterPropForHardwareSelection(
+    vtkPVDataRepresentation* repr, vtkProp* prop);
+  void UnRegisterPropForHardwareSelection(
+    vtkPVDataRepresentation* repr, vtkProp* prop);
 
   // Description:
   // Turn on/off the default light in the 3D renderer.
@@ -430,8 +399,10 @@ public:
 
   //*****************************************************************
   // Forwarded to vtkPVInteractorStyle if present on local processes.
-  void AddManipulator(vtkCameraManipulator* val);
-  void RemoveAllManipulators();
+  void Add2DManipulator(vtkCameraManipulator* val);
+  void RemoveAll2DManipulators();
+  void Add3DManipulator(vtkCameraManipulator* val);
+  void RemoveAll3DManipulators();
 
   // Description:
   // Overridden to synchronize information among processes whenever data
@@ -441,6 +412,68 @@ public:
   // here.
   virtual void Update();
 
+  // Description:
+  // Asks representations to update their LOD geometries.
+  virtual void UpdateLOD();
+
+  // Description:
+  // Returns whether the view will use LOD rendering for the next
+  // InteractiveRender() call based on the geometry sizes determined by the most
+  // recent call to Update().
+  vtkGetMacro(UseLODForInteractiveRender, bool);
+
+  // Description:
+  // Returns whether the view will use distributed rendering for the next
+  // StillRender() call based on the geometry sizes determined by the most
+  // recent call to Update().
+  vtkGetMacro(UseDistributedRenderingForStillRender, bool);
+
+  // Description:
+  // Returns whether the view will use distributed rendering for the next
+  // InteractiveRender() call based on the geometry sizes determined by the most
+  // recent calls to Update() and UpdateLOD().
+  vtkGetMacro(UseDistributedRenderingForInteractiveRender, bool);
+
+  // Description:
+  // Returns the processes (vtkPVSession::ServerFlags) that are to be involved
+  // in the next StillRender() call based on the decisions made during the most
+  // recent Update().
+  vtkGetMacro(StillRenderProcesses, vtkTypeUInt32);
+
+  // Description:
+  // Returns the processes (vtkPVSession::ServerFlags) that are to be involved
+  // in the next InteractiveRender() call based on the decisions made during the most
+  // recent Update() and UpdateLOD().
+  vtkGetMacro(InteractiveRenderProcesses, vtkTypeUInt32);
+
+  // Description:
+  // Returns the data distribution mode to use.
+  int GetDataDistributionMode(bool use_remote_rendering);
+
+  // Description:
+  // Provides access to the geometry storage for this view.
+  vtkPVDataDeliveryManager* GetDeliveryManager();
+
+  // Description:
+  // Called on all processes to request data-delivery for the list of
+  // representations. Note this method has to be called on all processes or it
+  // may lead to deadlock.
+  void Deliver(int use_lod,
+    unsigned int size, unsigned int *representation_ids);
+
+  // Description:
+  // Returns true when ordered compositing is needed on the current group of
+  // processes. Note that unlike most other functions, this may return different
+  // values on different processes e.g.
+  // \li always false on client and dataserver
+  // \li true on pvserver or renderserver if opacity < 1 or volume present, else
+  //     false
+  bool GetUseOrderedCompositing();
+
+  // Description:
+  // Provides access to the time when Update() was last called.
+  unsigned long GetUpdateTimeStamp()
+    { return this->UpdateTimeStamp; }
 //BTX
 protected:
   vtkPVRenderView();
@@ -456,57 +489,30 @@ protected:
   virtual void AddRepresentationInternal(vtkDataRepresentation* rep);
   virtual void RemoveRepresentationInternal(vtkDataRepresentation* rep);
 
+  // Description:
+  // These methods are used to setup the view for capturing screen shots.
+  // In batch mode, since the server-side has just 1 render window, we need to
+  // make sure that the right interactor is activated, otherwise, we end up
+  // capturing images from the wrong view.
+  virtual void PrepareForScreenshot();
 
   // Description:
   // Actual render method.
   virtual void Render(bool interactive, bool skip_rendering);
 
   // Description:
-  // Does data-delivery to the rendering nodes.
-  virtual void DoDataDelivery(bool using_lod_rendering, bool using_remote_rendering);
+  // Returns true if distributed rendering should be used based on the geometry
+  // size.
+  bool ShouldUseDistributedRendering(double geometry_size);
 
   // Description:
-  // Calls vtkView::REQUEST_INFORMATION() on all representations
-  virtual void GatherRepresentationInformation();
-
-  // Description:
-  // Sychronizes the geometry size information on all nodes.
-  // @CallOnAllProcessess
-  void GatherGeometrySizeInformation();
+  // Returns true if LOD rendering should be used based on the geometry size.
+  bool ShouldUseLODRendering(double geometry);
 
   // Description:
   // Synchronizes bounds information on all nodes.
   // @CallOnAllProcessess
-  void GatherBoundsInformation(bool using_remote_rendering);
-
-  // Description:
-  // Returns true if distributed rendering should be used.
-  bool GetUseDistributedRendering();
-
-  // Description:
-  // Returns true if LOD rendering should be used.
-  bool GetUseLODRendering();
-
-  // Description:
-  // Returns true when ordered compositing is needed on the current group of
-  // processes. Note that unlike most other functions, this may return different
-  // values on different processes e.g.
-  // \li always false on client and dataserver
-  // \li true on pvserver or renderserver if opacity < 1 or volume present, else
-  //     false
-  bool GetUseOrderedCompositing();
-
-  // Description:
-  // Returns true if outline should be delivered to client.
-  bool GetDeliverOutlineToClient();
-
-  // Description:
-  // Update the request to enable/disable distributed rendering.
-  void SetRequestDistributedRendering(bool);
-
-  // Description:
-  // Update the request to enable/disable low-res rendering.
-  void SetRequestLODRendering(bool);
+  void SynchronizeGeometryBounds();
 
   // Description:
   // Set the last selection object.
@@ -515,7 +521,7 @@ protected:
   // Description:
   // UpdateCenterAxes().
   // Updates CenterAxes's scale and position.
-  void UpdateCenterAxes(double bounds[6]);
+  void UpdateCenterAxes();
 
   // Description
   // Returns true if the local process is doing to do actual render or
@@ -523,8 +529,19 @@ protected:
   bool GetLocalProcessDoesRendering(bool using_distributed_rendering);
 
   // Description:
-  // Synchronizes core ivars for multi-client setups.
-  virtual void SynchronizeForCollaboration();
+  // In multi-clients mode, ensures that all processes are in the same "state"
+  // as far as the view is concerned. Returns false if that's not the case.
+  bool TestCollaborationCounter();
+
+  // Description:
+  // Synchronizes remote-rendering related parameters for collaborative
+  // rendering in multi-clients mode.
+  void SynchronizeForCollaboration();
+
+  // Description:
+  // SynchronizationCounter is used in multi-clients mode to ensure that the
+  // views on two different clients are in the same state as the server side.
+  vtkGetMacro(SynchronizationCounter, unsigned int);
 
   vtkLight* Light;
   vtkLightKit* LightKit;
@@ -532,7 +549,6 @@ protected:
   vtkRenderer* NonCompositedRenderer;
   vtkPVSynchronizedRenderer* SynchronizedRenderers;
   vtkPVGenericRenderWindowInteractor* Interactor;
-  vtkPVInteractorStyle* InteractorStyle;
   vtkInteractorStyleRubberBand3D* RubberBandStyle;
   vtkInteractorStyleRubberBandZoom* RubberBandZoom;
   vtkPVCenterAxesActor* CenterAxes;
@@ -544,35 +560,49 @@ protected:
   int InteractiveRenderImageReductionFactor;
   int InteractionMode;
 
+  // 2D and 3D interactor style
+  vtkPVInteractorStyle* TwoDInteractorStyle;
+  vtkPVInteractorStyle* ThreeDInteractorStyle;
+
+  // Active interactor style either [TwoDInteractorStyle, ThreeDInteractorStyle]
+  vtkPVInteractorStyle* InteractorStyle;
+
   // Used in collaboration mode to ensure that views are in the same state
   // (as far as representations added/removed goes) before rendering.
-  int SynchronizationCounter;
-  bool CounterSynchronizedSuccessfully;
+  unsigned int SynchronizationCounter;
 
   // In mega-bytes.
-  double LocalGeometrySize;
-  double GeometrySize;
   double RemoteRenderingThreshold;
   double LODRenderingThreshold;
-  double ClientOutlineThreshold;
-  double LastComputedBounds[6];
+  vtkBoundingBox GeometryBounds;
+
   bool UseOffscreenRendering;
   bool UseOffscreenRenderingForScreenshots;
   bool UseInteractiveRenderingForSceenshots;
+  bool NeedsOrderedCompositing;
 
   double LODResolution;
   bool UseLightKit;
 
   bool UsedLODForLastRender;
+  bool UseLODForInteractiveRender;
+  bool UseOutlineForLODRendering;
+  bool UseDistributedRenderingForStillRender;
+  bool UseDistributedRenderingForInteractiveRender;
 
   static bool RemoteRenderingAllowed;
 
-  vtkBSPCutsGenerator* OrderedCompositingBSPCutsSource;
+  vtkTypeUInt32 StillRenderProcesses;
+  vtkTypeUInt32 InteractiveRenderProcesses;
 
-  vtkTimeStamp UpdateTime;
-  vtkTimeStamp StillRenderTime;
-  vtkTimeStamp InteractiveRenderTime;
+  // Description:
+  // Keeps track of the time when vtkPVRenderView::Update() was called.
+  vtkTimeStamp UpdateTimeStamp;
 
+  // Description:
+  // Keeps track of the time when the priority-queue for streaming was
+  // generated.
+  vtkTimeStamp PriorityQueueBuildTimeStamp;
 private:
   vtkPVRenderView(const vtkPVRenderView&); // Not implemented
   void operator=(const vtkPVRenderView&); // Not implemented
@@ -584,6 +614,8 @@ private:
   // This flag is set to false when not all processes cannot render e.g. cannot
   // open the DISPLAY etc.
   bool RemoteRenderingAvailable;
+
+  int PreviousParallelProjectionStatus;
 
   class vtkInternals;
   vtkInternals* Internals;

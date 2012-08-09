@@ -17,6 +17,8 @@
 // This class combines all the duplicate and collection requirements
 // into one filter. It can move polydata and unstructured grid between
 // processes. It can redistributed polydata from M to N processors.
+// Update: This filter can now support delivering vtkUniformGridAMR datasets in
+// PASS_THROUGH and/or COLLECT modes.
 
 #ifndef __vtkMPIMoveData_h
 #define __vtkMPIMoveData_h
@@ -66,6 +68,7 @@ public:
   void SetServerToDataServer(){this->Server=vtkMPIMoveData::DATA_SERVER;}
   void SetServerToRenderServer(){this->Server=vtkMPIMoveData::RENDER_SERVER;}
   vtkSetClampMacro(Server, int, vtkMPIMoveData::CLIENT, vtkMPIMoveData::RENDER_SERVER);
+  vtkGetMacro(Server, int);
 
   // Description:
   // Specify how the data is to be redistributed.
@@ -80,19 +83,9 @@ public:
   // communicating with other processes. Since communicating with other
   // processes in RequestDataObject is dangerous (can cause deadlock because
   // it may happen out-of-sync), the application has to set the output
-  // type. The default is VTK_POLY_DATA. Currently, only VTK_UNSTRUCTURED_GRID
-  // and VTK_POLY_DATA are supported. Make sure to call this before any
-  // pipeline updates occur.
+  // type. The default is VTK_POLY_DATA. 
   vtkSetMacro(OutputDataType, int);
   vtkGetMacro(OutputDataType, int);
-
-  // Description:
-  // Sometimes, the data may be too huge to deliver to the client. In that case,
-  // the client can request that only the outline for the data may be delivered
-  // to the client. This is supported only for vtkPolyData.
-  // Off by default.
-  vtkSetMacro(DeliverOutlineToClient, int);
-  vtkGetMacro(DeliverOutlineToClient, int);
 
   // Description:
   // When set to true, zlib compression is used. False by default.
@@ -100,6 +93,13 @@ public:
   // always checks the received data to see if zlib decompression is required.
   static void SetUseZLibCompression(bool b);
   static bool GetUseZLibCompression();
+
+  // Description:
+  // vtkMPIMoveData doesn't necessarily generate a valid output data on all the
+  // involved processes (depending on the MoveMode and Server ivars). This
+  // returns true if valid data is available on the current processes after
+  // successful Update() given the current ivars).
+  bool GetOutputGeneratedOnProcess();
 
 //BTX
   enum MoveModes {
@@ -161,7 +161,6 @@ protected:
 //ETX
 
   int OutputDataType;
-  int DeliverOutlineToClient;
 
 private:
   int UpdateNumberOfPieces;

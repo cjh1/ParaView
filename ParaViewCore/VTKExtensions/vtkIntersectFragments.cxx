@@ -55,11 +55,11 @@
 // STL
 #include "vtksys/ios/sstream"
 using vtksys_ios::ostringstream;
-#include "vtkstd/vector"
-using vtkstd::vector;
-#include "vtkstd/string"
-using vtkstd::string;
-#include "vtkstd/algorithm"
+#include "vector"
+using std::vector;
+#include "string"
+using std::string;
+#include "algorithm"
 // ansi c
 #include <math.h>
 // other
@@ -347,9 +347,10 @@ int vtkIntersectFragments::Intersect()
       vtkPolyData *fragment
         = dynamic_cast<vtkPolyData *>(fragments->GetPiece(globalId));
       // cut
-      this->Cutter->SetInput(fragment);
+      this->Cutter->SetInputData(fragment);
+      this->Cutter->Update();
       vtkPolyData *intersection=this->Cutter->GetOutput();
-      intersection->Update();
+      
       if (intersection->GetNumberOfPoints()>0)
         {
         ids.push_back(globalId);

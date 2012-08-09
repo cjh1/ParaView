@@ -21,8 +21,8 @@
 #include "vtkStreamingDemandDrivenPipeline.h"
 
 #include <vtksys/ios/sstream>
-#include <vtkstd/string>
-#include <vtkstd/map>
+#include <string>
+#include <map>
 
 #include <sys/stat.h>
 #include <assert.h>
@@ -356,10 +356,10 @@ int vtkAdiosReader::RequestUpdateExtent(vtkInformation*,
                         vtkInformationVector* outputVector)
 {
   vtkInformation *info = outputVector->GetInformationObject(0);
-  if(info->Has(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS()))
+  if(info->Has(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP()))
     {
     this->Internal->SetActiveTimeStep(
-        info->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS())[0]);
+        info->Get(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP()));
     }
   return 1;
 }

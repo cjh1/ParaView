@@ -29,7 +29,6 @@
 #include "vtkDataObjectTypes.h"
 #include "vtkDataSet.h"
 #include "vtkDataSetSurfaceFilter.h"
-#include "vtkDistributedDataFilter.h"
 #include "vtkGarbageCollector.h"
 #include "vtkInformation.h"
 #include "vtkInformationVector.h"
@@ -38,10 +37,15 @@
 #include "vtkObjectFactory.h"
 #include "vtkPKdTree.h"
 #include "vtkPolyData.h"
+#include "vtkPVConfig.h" // needed for PARAVIEW_USE_MPI 
 #include "vtkUnstructuredGrid.h"
 
-//-----------------------------------------------------------------------------
+#ifdef PARAVIEW_USE_MPI
+# include "vtkDistributedDataFilter.h"
+#endif
 
+//-----------------------------------------------------------------------------
+#ifdef PARAVIEW_USE_MPI
 static void D3UpdateProgress(vtkObject *_D3, unsigned long,
                              void *_distributor, void *)
 {
@@ -53,7 +57,7 @@ static void D3UpdateProgress(vtkObject *_D3, unsigned long,
   distributor->SetProgressText(D3->GetProgressText());
   distributor->UpdateProgress(D3->GetProgress() * 0.9);
 }
-
+#endif
 //-----------------------------------------------------------------------------
 
 vtkStandardNewMacro(vtkOrderedCompositeDistributor);
@@ -61,8 +65,10 @@ vtkStandardNewMacro(vtkOrderedCompositeDistributor);
 vtkCxxSetObjectMacro(vtkOrderedCompositeDistributor, PKdTree, vtkPKdTree);
 vtkCxxSetObjectMacro(vtkOrderedCompositeDistributor, Controller,
                      vtkMultiProcessController);
+#ifdef PARAVIEW_USE_MPI
 vtkCxxSetObjectMacro(vtkOrderedCompositeDistributor, D3,
                      vtkDistributedDataFilter);
+#endif
 vtkCxxSetObjectMacro(vtkOrderedCompositeDistributor, ToPolyData,
                      vtkDataSetSurfaceFilter);
 
@@ -73,7 +79,9 @@ vtkOrderedCompositeDistributor::vtkOrderedCompositeDistributor()
   this->PKdTree = NULL;
   this->Controller = NULL;
 
+#ifdef PARAVIEW_USE_MPI
   this->D3 = NULL;
+#endif
   this->ToPolyData = NULL;
 
   this->PassThrough = 0;
@@ -90,7 +98,9 @@ vtkOrderedCompositeDistributor::~vtkOrderedCompositeDistributor()
   this->SetPKdTree(NULL);
   this->SetController(NULL);
 
+#ifdef PARAVIEW_USE_MPI
   this->SetD3(NULL);
+#endif
   this->SetToPolyData(NULL);
 
   this->SetOutputType(NULL);
@@ -108,7 +118,9 @@ void vtkOrderedCompositeDistributor::PrintSelf(ostream &os, vtkIndent indent)
   os << indent << "PassThrough: " << this->PassThrough << endl;
   os << indent << "OutputType: " << 
     (this->OutputType? this->OutputType : "(none)") << endl;
+#ifdef PARAVIEW_USE_MPI
   os << indent << "D3: " << this->D3 << endl;
+#endif
   os << indent << "ToPolyData" << this->ToPolyData << endl;
 }
 
@@ -118,8 +130,9 @@ void vtkOrderedCompositeDistributor::ReportReferences(
                                                  vtkGarbageCollector *collector)
 {
   this->Superclass::ReportReferences(collector);
-
+#ifdef PARAVIEW_USE_MPI
   vtkGarbageCollectorReport(collector, this->D3, "D3");
+#endif
   vtkGarbageCollectorReport(collector, this->ToPolyData, "ToPolyData");
   vtkGarbageCollectorReport(collector, this->PKdTree, "PKdTree");
   vtkGarbageCollectorReport(collector, this->Controller, "Controller");
@@ -165,7 +178,7 @@ int vtkOrderedCompositeDistributor::RequestDataObject(
         {
         return 0;
         }
-      output->SetPipelineInformation(info);
+      info->Set(vtkDataObject::DATA_OBJECT(), output);
       output->Delete();
       this->GetOutputPortInformation(0)->Set(vtkDataObject::DATA_EXTENT_TYPE(),
                                              output->GetExtentType());
@@ -203,13 +216,13 @@ int vtkOrderedCompositeDistributor::RequestData(
     return 1;
     }
 
-  if (this->PassThrough)
+  if (this->PassThrough || Controller->GetNumberOfProcesses() == 1)
     {
     // Don't do anything to the data.
     output->ShallowCopy(input);
     return 1;
     }
-
+#ifdef PARAVIEW_USE_MPI
   if (!this->PKdTree)
     {
     vtkWarningMacro("No PKdTree set. vtkOrderedCompositeDistributor requires that"
@@ -269,7 +282,7 @@ int vtkOrderedCompositeDistributor::RequestData(
   this->D3->AddObserver(vtkCommand::ProgressEvent, cbc);
 
   this->D3->SetBoundaryModeToSplitBoundaryCells();
-  this->D3->SetInput(input);
+  this->D3->SetInputData(input);
   this->D3->SetCuts(cuts);
   // We need to pass the region assignments from PKdTree to D3
   // (Refer to BUG #10828).
@@ -321,4 +334,5 @@ int vtkOrderedCompositeDistributor::RequestData(
   this->LastOutput->ShallowCopy(output);
 
   return 1;
+#endif
 }

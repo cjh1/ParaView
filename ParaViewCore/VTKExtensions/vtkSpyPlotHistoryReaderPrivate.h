@@ -23,10 +23,12 @@
 #ifndef __vtkSpyPlotHistoryReaderPrivate_h
 #define __vtkSpyPlotHistoryReaderPrivate_h
 
-#include <vtkstd/map> // Needed for STL map.
-#include <vtkstd/set> // Needed for STL set.
-#include <vtkstd/vector> // Needed for STL vector.
-#include <vtkstd/string> // Needed for STL string.
+#include <vtksys/SystemTools.hxx>
+
+#include <map> // Needed for STL map.
+#include <set> // Needed for STL set.
+#include <vector> // Needed for STL vector.
+#include <string> // Needed for STL string.
 #include <sstream> // Needed for STL sstream.
 
 //-----------------------------------------------------------------------------
@@ -117,6 +119,13 @@ namespace SpyPlotHistoryReaderPrivate
       while(std::getline(ss, item, delim))
         {
         trim(item);
+
+        // some hscth files have "time" with different case, so we change the
+        // case to a consistent value i.e. all lowercase (BUG #12983).
+        if (vtksys::SystemTools::LowerCase(item) == "time")
+          {
+          item = "time";
+          }
         if (fields.find(item) != fields.end())
           {
           ++count;

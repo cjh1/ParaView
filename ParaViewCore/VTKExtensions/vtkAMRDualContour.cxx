@@ -14,7 +14,7 @@
 =========================================================================*/
 #include "vtkAMRDualContour.h"
 #include "vtkAMRDualGridHelper.h"
-#include "vtkstd/vector"
+#include "vector"
 
 // Pipeline & VTK
 #include "vtkMarchingCubesTriangleCases.h"
@@ -38,7 +38,7 @@
 #include "vtkUniformGrid.h"
 #include "vtkUnstructuredGrid.h"
 #include "vtkMultiBlockDataSet.h"
-#include "vtkHierarchicalBoxDataSet.h"
+#include "vtkNonOverlappingAMR.h"
 #include "vtkCompositeDataIterator.h"
 #include "vtkMultiPieceDataSet.h"
 #include "vtkAMRBox.h"
@@ -612,7 +612,7 @@ int vtkAMRDualContour::RequestData(
 {
   // get the data set which we are to process
   vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
-  vtkHierarchicalBoxDataSet *hbdsInput=vtkHierarchicalBoxDataSet::SafeDownCast(
+  vtkNonOverlappingAMR *hbdsInput=vtkNonOverlappingAMR::SafeDownCast(
     inInfo->Get(vtkDataObject::DATA_OBJECT()));
 
   // Get the outputs
@@ -631,7 +631,7 @@ int vtkAMRDualContour::RequestData(
   if ( hbdsInput==0 )
     {
     // Do not deal with rectilinear grid
-    vtkErrorMacro("This filter requires a vtkHierarchicalBoxDataSet on its input.");
+    vtkErrorMacro("This filter requires a vtkNonOverlappingAMR on its input.");
     return 0;
     }
 
@@ -655,8 +655,10 @@ int vtkAMRDualContour::RequestData(
     }
   const char *arrayNameToProcess = inArrayInfo->Get(vtkDataObject::FIELD_NAME());
 
+  this->InitializeRequest (hbdsInput);
   vtkMultiBlockDataSet* out =
     this->DoRequestData(hbdsInput, arrayNameToProcess);
+  this->FinalizeRequest ();
 
   if(out)
     {
@@ -671,17 +673,8 @@ int vtkAMRDualContour::RequestData(
   return 1;
 }
 
-vtkMultiBlockDataSet*
-vtkAMRDualContour::DoRequestData(vtkHierarchicalBoxDataSet* hbdsInput,
-                              const char* arrayNameToProcess)
+void vtkAMRDualContour::InitializeRequest (vtkNonOverlappingAMR* hbdsInput) 
 {
-  vtkMultiBlockDataSet* mbdsOutput0 = vtkMultiBlockDataSet::New();
-  mbdsOutput0->SetNumberOfBlocks(1);
-  vtkMultiPieceDataSet *mpds = vtkMultiPieceDataSet::New();
-  mbdsOutput0->SetBlock(0,mpds);
-
-  mpds->SetNumberOfPieces(0);
-
   if(this->Helper)
     {
     this->Helper->Delete();
@@ -698,9 +691,27 @@ vtkAMRDualContour::DoRequestData(vtkHierarchicalBoxDataSet* hbdsInput,
     {
     this->Helper->SetController(NULL);
     }
+  this->Helper->Initialize(hbdsInput);
+}
 
-  // @TODO: Check if this is the right thing to do.
-  this->Helper->Initialize(hbdsInput, arrayNameToProcess);
+void vtkAMRDualContour::FinalizeRequest ()
+{
+  this->Helper->Delete();
+  this->Helper = 0;
+}
+
+vtkMultiBlockDataSet*
+vtkAMRDualContour::DoRequestData(vtkNonOverlappingAMR* hbdsInput,
+                              const char* arrayNameToProcess)
+{
+  this->Helper->SetupData(hbdsInput, arrayNameToProcess);
+
+  vtkMultiBlockDataSet* mbdsOutput0 = vtkMultiBlockDataSet::New();
+  mbdsOutput0->SetNumberOfBlocks(1);
+  vtkMultiPieceDataSet *mpds = vtkMultiPieceDataSet::New();
+  mbdsOutput0->SetBlock(0,mpds);
+
+  mpds->SetNumberOfPieces(0);
 
   this->Mesh = vtkPolyData::New();
   this->Points = vtkPoints::New();
@@ -742,8 +753,6 @@ vtkAMRDualContour::DoRequestData(vtkHierarchicalBoxDataSet* hbdsInput,
   this->Faces = 0;
 
   mpds->Delete();
-  this->Helper->Delete();
-  this->Helper = 0;
 
   return mbdsOutput0;
 }
@@ -1580,7 +1589,7 @@ double vtkDualGridContourInterpolateAttribute(
 
 //----------------------------------------------------------------------------
 void vtkAMRDualContour::InitializeCopyAttributes(
-  vtkHierarchicalBoxDataSet *hbdsInput,
+  vtkNonOverlappingAMR *hbdsInput,
   vtkDataSet* mesh)
 {
   // Most of this is just getting a block with cell attributes so we can

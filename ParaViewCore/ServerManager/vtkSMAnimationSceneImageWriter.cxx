@@ -36,8 +36,8 @@
 # include "vtkMPEG2Writer.h"
 #endif
 
-#include <vtkstd/algorithm>
-#include <vtkstd/string>
+#include <algorithm>
+#include <string>
 #include <vtksys/SystemTools.hxx>
 
 #ifdef _WIN32
@@ -108,7 +108,7 @@ bool vtkSMAnimationSceneImageWriter::SaveInitialize()
     {
     this->MovieWriter->SetFileName(this->FileName);
     vtkImageData* emptyImage = this->NewFrame();
-    this->MovieWriter->SetInput(emptyImage);
+    this->MovieWriter->SetInputData(emptyImage);
     emptyImage->Delete();
 
     this->MovieWriter->Start();
@@ -146,9 +146,7 @@ vtkImageData* vtkSMAnimationSceneImageWriter::NewFrame()
 {
   vtkImageData* image = vtkImageData::New();
   image->SetDimensions(this->ActualSize[0], this->ActualSize[1], 1);
-  image->SetScalarTypeToUnsignedChar();
-  image->SetNumberOfScalarComponents(3);
-  image->AllocateScalars();
+  image->AllocateScalars(VTK_UNSIGNED_CHAR, 3);
 
   unsigned char rgb[3];
   rgb[0] = 0x0ff & static_cast<int>(this->BackgroundColor[0]*0x0ff);
@@ -201,10 +199,10 @@ void vtkSMAnimationSceneImageWriter::Merge(vtkImageData* dest, vtkImageData* src
   outextent[2] = outextent[3];
   outextent[3] = temp;
   // snap extents to what is available.
-  outextent[0] = vtkstd::max(outextent[0], dest->GetExtent()[0]);
-  outextent[1] = vtkstd::min(outextent[1], dest->GetExtent()[1]);
-  outextent[2] = vtkstd::max(outextent[2], dest->GetExtent()[2]);
-  outextent[3] = vtkstd::min(outextent[3], dest->GetExtent()[3]);
+  outextent[0] = std::max(outextent[0], dest->GetExtent()[0]);
+  outextent[1] = std::min(outextent[1], dest->GetExtent()[1]);
+  outextent[2] = std::max(outextent[2], dest->GetExtent()[2]);
+  outextent[3] = std::min(outextent[3], dest->GetExtent()[3]);
   vtkImageIterator<unsigned char> outIt(dest, outextent);
 
   while (!outIt.IsAtEnd() && !inIt.IsAtEnd())
@@ -261,12 +259,12 @@ bool vtkSMAnimationSceneImageWriter::SaveFrame(double vtkNotUsed(time))
     {
     char number[1024];
     sprintf(number, ".%04d", this->FileCount);
-    vtkstd::string filename = this->Prefix;
+    std::string filename = this->Prefix;
     filename = filename + number + this->Suffix;
-    this->ImageWriter->SetInput(combinedImage);
+    this->ImageWriter->SetInputData(combinedImage);
     this->ImageWriter->SetFileName(filename.c_str());
     this->ImageWriter->Write();
-    this->ImageWriter->SetInput(0);
+    this->ImageWriter->SetInputData(0);
 
     errcode = this->ImageWriter->GetErrorCode();
     this->FileCount = (!errcode)? this->FileCount + 1 : this->FileCount;
@@ -274,9 +272,9 @@ bool vtkSMAnimationSceneImageWriter::SaveFrame(double vtkNotUsed(time))
     }
   else if (this->MovieWriter)
     {
-    this->MovieWriter->SetInput(combinedImage);
+    this->MovieWriter->SetInputData(combinedImage);
     this->MovieWriter->Write();
-    this->MovieWriter->SetInput(0);
+    this->MovieWriter->SetInputData(0);
 
     int alg_error = this->MovieWriter->GetErrorCode();
     int movie_error = this->MovieWriter->GetError();
@@ -351,7 +349,7 @@ bool vtkSMAnimationSceneImageWriter::CreateWriter()
   vtkImageWriter* iwriter =0;
   vtkGenericMovieWriter* mwriter = 0;
 
-  vtkstd::string extension = vtksys::SystemTools::GetFilenameLastExtension(
+  std::string extension = vtksys::SystemTools::GetFilenameLastExtension(
     this->FileName);
   if (extension == ".jpg" || extension == ".jpeg")
     {
@@ -414,9 +412,9 @@ bool vtkSMAnimationSceneImageWriter::CreateWriter()
     this->SetImageWriter(iwriter);
     iwriter->Delete();
 
-    vtkstd::string filename = this->FileName;
-    vtkstd::string::size_type dot_pos = filename.rfind(".");
-    if(dot_pos != vtkstd::string::npos)
+    std::string filename = this->FileName;
+    std::string::size_type dot_pos = filename.rfind(".");
+    if(dot_pos != std::string::npos)
       {
       this->SetPrefix(filename.substr(0, dot_pos).c_str());
       this->SetSuffix(filename.substr(dot_pos).c_str());

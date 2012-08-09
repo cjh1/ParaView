@@ -24,6 +24,7 @@ SET (Kit_SRCS
   vtkPVSessionCore.cxx
   vtkPVSessionCoreInterpreterHelper.cxx
   vtkPVSessionServer.cxx
+  vtkSIAMRVolumeRepresentationProxy.cxx
   vtkSIArraySelectionProperty.cxx
   vtkSIChartRepresentationProxy.cxx
   vtkSICollaborationManager.cxx
@@ -48,6 +49,7 @@ SET (Kit_SRCS
   vtkSISourceProxy.cxx
   vtkSIStringVectorProperty.cxx
   vtkSITextSourceRepresentationProxy.cxx
+  vtkSITimeLabelProperty.cxx
   vtkSITimeRangeProperty.cxx
   vtkSITimeStepsProperty.cxx
   vtkSIUniformGridVolumeRepresentationProxy.cxx
@@ -87,27 +89,21 @@ INCLUDE_DIRECTORIES(
 # Compile protobuf resources.
 # run it from a script so we can set necessary paths.
 get_target_property(PROTOC_LOCATION protoc_compiler LOCATION)
-if (WIN32)
-  get_filename_component(PROTOC_DIR ${PROTOC_LOCATION} PATH)
-  get_filename_component(PROTOC_PDIR ${PROTOC_DIR} PATH)
-  get_filename_component(PROTOC_FNAME ${PROTOC_LOCATION} NAME_WE)
-  set(PROTOC_LOCATION "${PROTOC_PDIR}/\${OutDir}/${PROTOC_FNAME}")
-endif (WIN32)
-configure_file(${ParaView_CMAKE_DIR}/ExecuteProtoC.cmake.in
-               ${CMAKE_CURRENT_BINARY_DIR}/ExecuteProtoC.cmake
-               @ONLY)
 add_custom_command(
     OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/vtkPVMessage.pb.h
            ${CMAKE_CURRENT_BINARY_DIR}/vtkPVMessage.pb.cc
-    COMMAND ${CMAKE_COMMAND}
-    ARGS    -DOutDir=${CMAKE_CFG_INTDIR} -P ${CMAKE_CURRENT_BINARY_DIR}/ExecuteProtoC.cmake
-    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Resources/vtkPVMessage.proto protoc_compiler ${ParaView_CMAKE_DIR}/ExecuteProtoC.cmake.in
+    
+    COMMAND protoc_compiler
+           "--cpp_out=dllexport_decl=VTK_PROTOBUF_EXPORT:${CMAKE_CURRENT_BINARY_DIR}"
+           --proto_path "@CMAKE_CURRENT_SOURCE_DIR@/Resources"
+           "${CMAKE_CURRENT_SOURCE_DIR}/Resources/vtkPVMessage.proto"
+    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/Resources/vtkPVMessage.proto protoc_compiler
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
 )
 
 add_custom_target(
   protobuf_code_generation
-  DEPENDS  ${CMAKE_CURRENT_BINARY_DIR}/vtkPVMessage.pb.h ${CMAKE_CURRENT_BINARY_DIR}/vtkPVMessage.pb.cc ${ParaView_CMAKE_DIR}/ExecuteProtoC.cmake.in
+  DEPENDS  ${CMAKE_CURRENT_BINARY_DIR}/vtkPVMessage.pb.h ${CMAKE_CURRENT_BINARY_DIR}/vtkPVMessage.pb.cc
 )
 
 #------------------------------------------------------------------------------
@@ -134,6 +130,9 @@ IF(PARAVIEW_ENABLE_PYTHON)
       )
   ENDIF(PARAVIEW_ENABLE_PYTHON_FILTERS)
 ENDIF(PARAVIEW_ENABLE_PYTHON)
+
+SET (PARAVIEW_SERVERMANAGER_XMLS ${resourceFiles}
+    CACHE INTERNAL "Server Manager XMLs")
 
 #needs to depend on vtkParaViewIncludeModulesToSMApplication so
 #we can regenerate when python filters or VisItBridge are toggled on/off
@@ -195,7 +194,7 @@ INCLUDE_DIRECTORIES(${VTKCLIENTSERVER_INCLUDE_DIR})
 # Create ClientServer wrappers for ParaView classes.
 SET(_VTK_BINARY_DIR "${VTK_BINARY_DIR}")
 SET(VTK_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
-INCLUDE(${VTK_CMAKE_DIR}/vtkExportKit.cmake)
+INCLUDE(${ParaView_CMAKE_DIR}/VTKMono/vtkExportKit.cmake)
 VTK_EXPORT_KIT("${KIT}" "${KIT_UPCASE}" "${Kit_SRCS}")
 SET(VTK_BINARY_DIR "${_VTK_BINARY_DIR}")
 
@@ -228,7 +227,7 @@ ENDIF (PARAVIEW_ENABLE_PYTHON)
 
 
 # Create the library.
-VTK_ADD_LIBRARY(vtk${KIT}
+PVVTK_ADD_LIBRARY(vtk${KIT}
   ${Kit_SRCS}
   ${KitInstantiator_SRCS}
   )

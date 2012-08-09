@@ -26,7 +26,7 @@
 #include "vtkSMProperty.h"
 #include "vtkSMProxy.h"
 
-#include <vtkstd/vector>
+#include <vector>
 #include <vtksys/ios/sstream>
 
 #include "vtkSMPropertyInternals.h"
@@ -47,6 +47,8 @@ vtkSMProperty::vtkSMProperty()
   this->PInternals = new vtkSMPropertyInternals;
   this->XMLName = 0;
   this->XMLLabel = 0;
+  this->PanelVisibility = 0;
+  this->PanelVisibilityDefaultForRepresentation = 0;
   this->DomainIterator = vtkSMDomainIterator::New();
   this->DomainIterator->SetProperty(this);
   this->Proxy = 0;
@@ -60,6 +62,9 @@ vtkSMProperty::vtkSMProperty()
   this->Hints = 0;
   this->BlockModifiedEvents = false;
   this->PendingModifiedEvents = false;
+
+  // by default, properties are set to always shown
+  this->SetPanelVisibility("default");
 
   this->Proxy = 0;
 }
@@ -270,7 +275,7 @@ void vtkSMProperty::CreatePrettyLabel(const char* xmlname)
 }
 
 //---------------------------------------------------------------------------
-int vtkSMProperty::ReadXMLAttributes(vtkSMProxy* vtkNotUsed(proxy),
+int vtkSMProperty::ReadXMLAttributes(vtkSMProxy* proxy,
                                      vtkPVXMLElement* element)
 {
   // TODO: some of the attributes are no longer necessary on the proxy-side,
@@ -357,6 +362,20 @@ int vtkSMProperty::ReadXMLAttributes(vtkSMProxy* vtkNotUsed(proxy),
     this->SetIsInternal(is_internal);
     }
 
+  const char *panel_visibility = element->GetAttribute("panel_visibility");
+  if(panel_visibility)
+    {
+    this->SetPanelVisibility(panel_visibility);
+    }
+
+  const char *panel_visibility_default_for_representation =
+    element->GetAttribute("panel_visibility_default_for_representation");
+  if(panel_visibility_default_for_representation)
+    {
+    this->SetPanelVisibilityDefaultForRepresentation(
+      panel_visibility_default_for_representation);
+    }
+
   // Manage deprecated XML definition
   int deprecated_attr_value;
   if(element->GetScalarAttribute("update_self", &deprecated_attr_value))
@@ -388,15 +407,15 @@ int vtkSMProperty::ReadXMLAttributes(vtkSMProxy* vtkNotUsed(proxy),
       this->SetHints(domainEl);
       continue;
       }
-    else if ( vtkstd::string(domainEl->GetName()).find("InformationHelper") !=
-              vtkstd::string::npos)
+    else if ( std::string(domainEl->GetName()).find("InformationHelper") !=
+              std::string::npos)
       {
       // InformationHelper are used to extract information from VTK object
       // therefore they are not used on the proxy side (SM).
       continue;
       }
-    else if ( vtkstd::string(domainEl->GetName()).find("StringArrayHelper") !=
-              vtkstd::string::npos)
+    else if ( std::string(domainEl->GetName()).find("StringArrayHelper") !=
+              std::string::npos)
       {
       // InformationHelper are used to extract information from VTK object
       // therefore they are not used on the proxy side (SM).
@@ -413,6 +432,8 @@ int vtkSMProperty::ReadXMLAttributes(vtkSMProxy* vtkNotUsed(proxy),
       vtkSMDomain* domain = vtkSMDomain::SafeDownCast(object);
       if (domain)
         {
+        assert("Session should be valid" && proxy->GetSession());
+        domain->SetSession(proxy->GetSession());
         if (domain->ReadXMLAttributes(this, domainEl))
           {
           const char* dname = domainEl->GetAttribute("name");

@@ -43,6 +43,12 @@ public:
   void PrintSelf(ostream& os, vtkIndent indent);
 
   // Description:
+  // Enable/Disable a view.
+  vtkSetMacro(Enable, bool);
+  vtkGetMacro(Enable, bool);
+  vtkBooleanMacro(Enable, bool);
+
+  // Description:
   // Renders the view using full resolution.
   virtual void StillRender();
 
@@ -73,7 +79,7 @@ public:
   // Description:
   // Saves a screenshot of the view to disk. The writerName argument specifies
   // the vtkImageWriter subclass to use.
-  int WriteImage(const char* filename, const char* writerName, int magnification);
+  int WriteImage(const char* filename, const char* writerName, int magnification=1);
 
   // Description:
   // Return true any internal representation is dirty. This can be usefull to
@@ -90,6 +96,8 @@ protected:
   virtual vtkImageData* CaptureWindowInternal(int vtkNotUsed(magnification))
     { return NULL; }
 
+  virtual vtkTypeUInt32 PreRender(bool vtkNotUsed(interactive))
+    { return this->GetLocation(); }
   virtual void PostRender(bool vtkNotUsed(interactive)) {}
 
   // Description:
@@ -98,10 +106,12 @@ protected:
 
   // Description:
   // Read attributes from an XML element.
-  virtual int ReadXMLAttributes(vtkSMProxyManager* pm, vtkPVXMLElement* element);
+  virtual int ReadXMLAttributes(vtkSMSessionProxyManager* pm, vtkPVXMLElement* element);
 
   vtkSetStringMacro(DefaultRepresentationName);
   char* DefaultRepresentationName;
+
+  bool Enable;
 
 private:
   vtkSMViewProxy(const vtkSMViewProxy&); // Not implemented

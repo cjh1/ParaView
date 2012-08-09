@@ -55,7 +55,7 @@ public:
 
   // Description:
   // Specify the input data to map.
-  void SetInput(vtkImageData *in);
+  void SetInputData(vtkImageData *in);
   virtual vtkImageData *GetInput();
 
   // Description:
@@ -90,7 +90,9 @@ public:
   
   // Description:
   // Update that sets the update piece first.
-  virtual void Update();
+  virtual void Update(int port);
+  virtual void Update()
+    { this->Superclass::Update(); }
 
   // Description:
   // If you want only a part of the data, specify by setting the piece.

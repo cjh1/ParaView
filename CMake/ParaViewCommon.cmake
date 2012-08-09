@@ -58,6 +58,9 @@ ENDMACRO(GLOB_RECURSIVE_INSTALL_DEVELOPMENT)
 # Common settings
 SET(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${ParaView_SOURCE_DIR}/VTK/CMake")
 
+# Choose static or shared libraries.
+option(BUILD_SHARED_LIBS "Build VTK with shared libraries." ON)
+
 set(PV_INSTALL_EXPORT_NAME ParaViewTargets)
 set(VTK_INSTALL_EXPORT_NAME ${PV_INSTALL_EXPORT_NAME})
 set(HDF5_EXPORTED_TARGETS ${PV_INSTALL_EXPORT_NAME})
@@ -67,10 +70,17 @@ SET(VTK_NO_LIBRARY_VERSION 1)
 SET(VTK_LIBRARY_PROPERTIES VERSION "pv${PARAVIEW_VERSION}")
 
 # Setup output directories.
-SET (LIBRARY_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin CACHE INTERNAL
-  "Single output directory for building all libraries.")
 SET (EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/bin CACHE INTERNAL
   "Single output directory for building all executables.")
+
+# Use the new version of the variable names for output of build process.
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+if(UNIX)
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
+else()
+  set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+endif()
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 
 #########################################################################
 # Configure VTK
@@ -82,11 +92,10 @@ SET(VTK_USE_HYBRID_ISSET ON)
 SET(VTK_USE_PARALLEL_ISSET ON)
 SET(VTK_USE_VOLUMERENDERING_ISSET ON)
 SET(VTK_USE_ANSI_STDLIB ${PARAVIEW_USE_ANSI_STDLIB})
-SET(VTK_HEADER_TESTING_PY "${ParaView_SOURCE_DIR}/VTK/Common/Testing/HeaderTesting.py")
+SET(VTK_HEADER_TESTING_PY "${ParaView_SOURCE_DIR}/VTK/Testing/Core/HeaderTesting.py")
 SET(VTK_PRINT_SELF_CHECK_TCL "${ParaView_SOURCE_DIR}/VTK/Common/Testing/Tcl/PrintSelfCheck.tcl")
 SET(VTK_FIND_STRING_TCL "${ParaView_SOURCE_DIR}/VTK/Common/Testing/Tcl/FindString.tcl")
 
-SET(VTK_USE_RENDERING ON CACHE INTERNAL "" FORCE)
 SET(VTK_WRAP_TCL OFF CACHE INTERNAL "" FORCE)
 SET(VTK_USE_MATROX_IMAGING OFF CACHE INTERNAL "" FORCE)
 
@@ -100,31 +109,8 @@ MARK_AS_ADVANCED(VTK_DATA_ROOT)
 MARK_AS_ADVANCED(VTK_LARGE_DATA_ROOT)
 MARK_AS_ADVANCED(BUILD_EXAMPLES)
 MARK_AS_ADVANCED(BUILD_EXAMPLES)
-MARK_AS_ADVANCED(VTK_USE_GEOVIS)
-MARK_AS_ADVANCED(VTK_USE_VIEWS)
 MARK_AS_ADVANCED(VTK_USE_GL2PS)
 MARK_AS_ADVANCED(VTK_WRAP_JAVA)
-
-# Include the UseX option.
-INCLUDE(${VTK_CMAKE_DIR}/vtkDependentOption.cmake)
-SET(PARAVIEW_NEED_X 1)
-IF(APPLE)
-  IF(NOT VTK_USE_X)
-    SET(PARAVIEW_NEED_X 0)
-  ENDIF(NOT VTK_USE_X)
-ENDIF(APPLE)
-IF(PARAVIEW_NEED_X)
-  INCLUDE(${VTK_CMAKE_DIR}/vtkUseX.cmake)
-ENDIF(PARAVIEW_NEED_X)
-SET(VTK_DONT_INCLUDE_USE_X 1)
-
-# Choose static or shared libraries.  This provides BUILD_SHARED_LIBS
-INCLUDE(${VTK_CMAKE_DIR}/vtkSelectSharedLibraries.cmake)
-
-# ParaView needs static Tcl/Tk if not using shared libraries.
-IF(NOT BUILD_SHARED_LIBS)
-  SET(VTK_TCL_TK_STATIC ON CACHE INTERNAL "" FORCE)
-ENDIF(NOT BUILD_SHARED_LIBS)
 
 # Setup install directories.
 IF(NOT PV_INSTALL_BIN_DIR)
@@ -185,10 +171,11 @@ SET(VTK_INSTALL_HAS_CMAKE_24 1)
 # Send VTK executables to the ParaView LIBRARY directory (not a mistake).
 # Send VTK include files to the ParaView include directory
 # Send VTK libraries to the ParaView library directory.
-SET(VTK_INSTALL_BIN_DIR "/${PV_INSTALL_BIN_DIR}")
-SET(VTK_INSTALL_INCLUDE_DIR "/${PV_INSTALL_INCLUDE_DIR}")
-SET(VTK_INSTALL_LIB_DIR "/${PV_INSTALL_LIB_DIR}")
-SET(VTK_INSTALL_PACKAGE_DIR "/${PV_INSTALL_LIB_DIR}")
+set(VTK_INSTALL_BIN_DIR "${PV_INSTALL_BIN_DIR}")
+set(VTK_INSTALL_INCLUDE_DIR "${PV_INSTALL_INCLUDE_DIR}")
+set(VTK_INSTALL_LIB_DIR "${PV_INSTALL_LIB_DIR}")
+set(VTK_INSTALL_PACKAGE_DIR "${PV_INSTALL_LIB_DIR}")
+set(VTK_MODULES_DIR ${CMAKE_BINARY_DIR}/${VTK_INSTALL_PACKAGE_DIR}/Modules)
 # VTK and KWCommon should install only the components paraview does.
 SET(VTK_INSTALL_NO_DOCUMENTATION 1)
 SET(VTK_INSTALL_NO_DEVELOPMENT ${PV_INSTALL_NO_DEVELOPMENT})
@@ -197,13 +184,17 @@ SET(VTK_INSTALL_NO_DEVELOPMENT ${PV_INSTALL_NO_DEVELOPMENT})
 # installations.
 SET (VTK_INSTALL_NO_PYTHON ON)
 SET (VTK_INSTALL_NO_VTKPYTHON ON)
-# Tell VTK to install python extension modules using CMake so they get installed
-# with the other python extension modules ParaView creates.
-IF(WIN32)
-  SET (VTK_INSTALL_PYTHON_USING_CMAKE ON)
-ELSE()
-  SET (VTK_INSTALL_PYTHON_USING_CMAKE OFF)
-ENDIF()
+# --- this code seems to be half-baked, so disabling that for now. Let's just do
+# traditional python module installation for this release ---
+## Tell VTK to install python extension modules using CMake so they get installed
+## with the other python extension modules ParaView creates.
+##IF(WIN32)
+##  SET (VTK_INSTALL_PYTHON_USING_CMAKE ON)
+##ELSE()
+##  SET (VTK_INSTALL_PYTHON_USING_CMAKE OFF)
+##ENDIF()
+SET (VTK_INSTALL_PYTHON_USING_CMAKE ON)
+
 SET (VTK_INSTALL_NO_QT_PLUGIN ON)
 SET (VTK_INSTALL_NO_LIBRARIES ${PV_INSTALL_NO_LIBRARIES})
 
@@ -246,9 +237,8 @@ INCLUDE_DIRECTORIES(
   ${ParaView_BINARY_DIR}/VTK/Utilities
   )
 
-INCLUDE(${ParaView_SOURCE_DIR}/VTK/CMake/vtkSelectStreamsLibrary.cmake)
-VTK_SELECT_STREAMS_LIBRARY(PARAVIEW_USE_ANSI_STDLIB
-                           ${ParaView_SOURCE_DIR}/VTK)
+# always require standards-compliant C++ environment
+set(PARAVIEW_USE_ANSI_STDLIB TRUE)
 
 # Fix cxx flags
 IF(CMAKE_COMPILER_IS_GNUCXX)
@@ -340,9 +330,6 @@ OPTION(VTK_USE_TK "Build VTK with Tk support" OFF)
 # Set this to get VTKs FOR LOOP "fix" to apply too all of Paraviews Source.
 SET(VTK_USE_FOR_SCOPE_WORKAROUND TRUE)
 
-CONFIGURE_FILE(${ParaView_SOURCE_DIR}/VTK/Utilities/TclTk/.NoDartCoverage
-  ${ParaView_BINARY_DIR}/VTK/.NoDartCoverage)
-
 OPTION(PARAVIEW_DISABLE_VTK_TESTING "Disable VTK Testing" OFF)
 MARK_AS_ADVANCED(PARAVIEW_DISABLE_VTK_TESTING)
 IF (PARAVIEW_DISABLE_VTK_TESTING)
@@ -383,7 +370,10 @@ IF(VTK_FOUND)
   include(${ParaView_BINARY_DIR}/VTK/VTKConfig.cmake)
 ENDIF()
 
-SET(VTK_INCLUDE_DIR
+include_directories(${VTK_INCLUDE_DIRS})
+set(VTK_INCLUDE_DIR ${VTK_INCLUDE_DIRS})
+
+set(VTK_INCLUDE_DIR ${VTK_INCLUDE_DIR}
   ${ParaView_SOURCE_DIR}/VTK
   ${ParaView_BINARY_DIR}/VTK
   ${ParaView_SOURCE_DIR}/VTK/Utilities
@@ -399,70 +389,17 @@ IF(PARAVIEW_ENABLE_PYTHON)
     )
 ENDIF(PARAVIEW_ENABLE_PYTHON)
 
-SET(kits Common Charts Filtering GenericFiltering IO Imaging Rendering Parallel Graphics Hybrid VolumeRendering Widgets)
-FOREACH(kit ${kits})
-  SET(VTK_INCLUDE_DIR ${VTK_INCLUDE_DIR}
-    ${ParaView_SOURCE_DIR}/VTK/${kit}
-    ${ParaView_BINARY_DIR}/VTK/${kit}
-    )
-ENDFOREACH(kit)
 
-IF(VTK_USE_INFOVIS)
-  SET(VTK_INCLUDE_DIR ${VTK_INCLUDE_DIR}
-    ${ParaView_SOURCE_DIR}/VTK/Infovis
-    ${ParaView_BINARY_DIR}/VTK/Infovis
-    )
-ENDIF(VTK_USE_INFOVIS)
 
-IF(VTK_USE_VIEWS)
-  SET(VTK_INCLUDE_DIR ${VTK_INCLUDE_DIR}
-    ${ParaView_SOURCE_DIR}/VTK/Views
-    ${ParaView_BINARY_DIR}/VTK/Views
-  )
-ENDIF(VTK_USE_VIEWS)
 
-IF(VTK_USE_SYSTEM_ZLIB)
-  SET(VTK_ZLIB_LIBRARIES ${ZLIB_LIBRARIES})
-  SET(VTK_ZLIB_INCLUDE_DIRS ${ZLIB_INCLUDE_DIR})
-  SET(VTKZLIB_INCLUDE_DIR ${ZLIB_INCLUDE_DIR})
-ELSE(VTK_USE_SYSTEM_ZLIB)
-  SET(VTK_ZLIB_LIBRARIES vtkzlib)
-  SET(VTK_ZLIB_INCLUDE_DIRS
-    ${ParaView_SOURCE_DIR}/VTK/Utilities
-    ${ParaView_BINARY_DIR}/VTK/Utilities
-    ${ParaView_SOURCE_DIR}/VTK
-    ${ParaView_BINARY_DIR}/VTK
-    )
-  SET(VTKZLIB_INCLUDE_DIR
-    ${ParaView_SOURCE_DIR}/VTK/Utilities
-    ${ParaView_BINARY_DIR}/VTK/Utilities
-    ${ParaView_SOURCE_DIR}/VTK
-    ${ParaView_BINARY_DIR}/VTK
-    )
-ENDIF(VTK_USE_SYSTEM_ZLIB)
+SET(VTK_ZLIB_LIBRARIES ${vtkzlib_LIBRARIES})
+SET(VTK_ZLIB_INCLUDE_DIRS ${vtkzlib_INCLUDE_DIRS})
+SET(VTKZLIB_INCLUDE_DIR ${vtkzlib_INCLUDE_DIRS})
 
 #########################################################################
 # Configure HDF5
-IF(VTK_USE_SYSTEM_HDF5)
-  SET(PARAVIEW_HDF5_LIBRARIES ${VTK_HDF5_LIBRARIES})
-  SET(HDF5_INCLUDE_DIR ${VTK_HDF5_INCLUDE_DIRS})
-ELSE()
-  # User HDF5's cmake config file.
-  SET(HDF5_CONFIG ${ParaView_BINARY_DIR}/VTK/Utilities/vtkhdf5/vtkHDF5Config.cmake)
-  INCLUDE("${HDF5_CONFIG}")
-
-  # Xdmf uses HDF5_INCLUDE_DIR (singular)
-  SET(HDF5_INCLUDE_DIR ${HDF5_INCLUDE_DIRS})
-  SET(PARAVIEW_HDF5_LIBRARIES ${HDF5_LIB_NAME})
-ENDIF()
-
-
-IF (VTK_USE_QT AND VTK_USE_GUISUPPORT)
-  SET(VTK_INCLUDE_DIR ${VTK_INCLUDE_DIR}
-    ${VTK_SOURCE_DIR}/GUISupport/Qt)
-  SET(VTK_INCLUDE_DIR ${VTK_INCLUDE_DIR}
-    ${VTK_DIR}/GUISupport/Qt)
-ENDIF (VTK_USE_QT AND VTK_USE_GUISUPPORT)
+set(HDF5_INCLUDE_DIR ${vtkhdf5_INCLUDE_DIRS})
+set(PARAVIEW_HDF5_LIBRARIES ${vtkhdf5_LIBRARIES})
 
 # Override QtTesting install variables
 IF (PARAVIEW_BUILD_QT_GUI)
@@ -559,7 +496,7 @@ MARK_AS_ADVANCED(CLEAR
 
 #########################################################################
 # Configure chroma-subsampling of the Ogg/Theora writer
-IF(VTK_USE_OGGTHEORA_ENCODER)
+IF(Module_vtkoggtheora)
   SET(PARAVIEW_OGGTHEORA_USE_SUBSAMPLING FALSE CACHE STRING
     "Use 4:2:0 chroma-subsampling when writing Ogg/Theora movies")
   MARK_AS_ADVANCED(PARAVIEW_OGGTHEORA_USE_SUBSAMPLING)
@@ -567,7 +504,7 @@ IF(VTK_USE_OGGTHEORA_ENCODER)
     SET(PARAVIEW_OGGTHEORA_USE_SUBSAMPLING TRUE CACHE STRING
       "Must use 4:2:0 subsampling with this version of system-Ogg/Theora." FORCE)
   ENDIF(VTK_USE_SYSTEM_OGGTHEORA AND OGGTHEORA_NO_444_SUBSAMPLING)
-ENDIF(VTK_USE_OGGTHEORA_ENCODER)
+ENDIF()
 
 #########################################################################
 # Configure IceT
@@ -576,8 +513,9 @@ SET(ICET_INSTALL_LIB_DIR ${PV_INSTALL_LIB_DIR})
 SET(ICET_INSTALL_INCLUDE_DIR ${PV_INSTALL_INCLUDE_DIR})
 SET(ICET_INSTALL_NO_DEVELOPMENT ${PV_INSTALL_NO_DEVELOPMENT})
 SET(ICET_INSTALL_EXPORT_NAME ${PV_INSTALL_EXPORT_NAME})
-MARK_AS_ADVANCED(CLEAR VTK_USE_MPI)
-IF(VTK_USE_MPI)
+MARK_AS_ADVANCED(CLEAR PARAVIEW_USE_MPI)
+
+IF(PARAVIEW_USE_MPI)
   OPTION(PARAVIEW_USE_ICE_T "Use IceT multi display manager" ON)
   MARK_AS_ADVANCED(PARAVIEW_USE_ICE_T)
   IF (BUILD_TESTING)
@@ -609,7 +547,7 @@ IF(VTK_USE_MPI)
 
   # Needed for mpich 2
   ADD_DEFINITIONS("-DMPICH_IGNORE_CXX_SEEK")
-ENDIF(VTK_USE_MPI)
+ENDIF()
 
  #########################################################################
 # Configure VisItBridge
@@ -843,6 +781,9 @@ IF(PARAVIEW_USE_VISITBRIDGE)
   SET(PARAVIEW_INCLUDE_DIRS ${PARAVIEW_INCLUDE_DIRS}
   ${VISITAVTALGORITHMS_INCLUDE_DIRS})
 ENDIF(PARAVIEW_USE_VISITBRIDGE)
+
+# ParaView needs to know if we are on X
+set(PARAVIEW_USE_X ${VTK_USE_X})
 
 CONFIGURE_FILE(${ParaView_SOURCE_DIR}/vtkPVConfig.h.in
   ${ParaView_BINARY_DIR}/vtkPVConfig.h

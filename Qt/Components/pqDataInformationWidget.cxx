@@ -42,17 +42,63 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqActiveView.h"
 #include "pqApplicationCore.h"
 #include "pqDataInformationModel.h"
-#include "pqDataInformationModelSelectionAdaptor.h"
+#include "pqNonEditableStyledItemDelegate.h"
+#include "pqOutputPort.h"
+#include "pqPipelineSource.h"
 #include "pqSectionVisibilityContextMenu.h"
+#include "pqSelectionAdaptor.h"
 #include "pqServerManagerModel.h"
 #include "pqSetName.h"
+#include "vtkSMOutputPort.h"
 
+namespace
+{
+  class pqDataInformationModelSelectionAdaptor : public pqSelectionAdaptor
+  {
+public:
+  pqDataInformationModelSelectionAdaptor(
+    QItemSelectionModel* diModel)
+    : pqSelectionAdaptor(diModel)
+    {
+    }
+
+protected:
+  /// subclasses can override this method to provide model specific selection 
+  /// overrides such as QItemSelection::Rows or QItemSelection::Columns etc.
+  virtual QItemSelectionModel::SelectionFlag qtSelectionFlags() const
+    { return QItemSelectionModel::Rows; }
+
+  /// Maps a pqServerManagerModelItem to an index in the QAbstractItemModel.
+  virtual QModelIndex mapFromItem(pqServerManagerModelItem* item) const
+    {
+    const pqDataInformationModel* pM = qobject_cast<const pqDataInformationModel*>(
+      this->getQModel());
+
+    pqOutputPort* outputPort = qobject_cast<pqOutputPort*>(item);
+    if (outputPort)
+      {
+      return pM->getIndexFor(outputPort);
+      }
+    pqPipelineSource* src = qobject_cast<pqPipelineSource*>(item);
+    return pM->getIndexFor(src? src->getOutputPort(0) : 0);
+    }
+
+  /// Maps a QModelIndex to a pqServerManagerModelItem.
+  virtual pqServerManagerModelItem* mapToItem(const QModelIndex& index) const
+    {
+    const pqDataInformationModel* pM = qobject_cast<const pqDataInformationModel*>(
+      this->getQModel());
+    return pM->getItemFor(index);
+    }
+  };
+}
 //-----------------------------------------------------------------------------
 pqDataInformationWidget::pqDataInformationWidget(QWidget* _parent /*=0*/)
   : QWidget(_parent)
 {
   this->Model = new pqDataInformationModel(this);
   this->View = new QTableView(this);
+  this->View->setItemDelegate(new pqNonEditableStyledItemDelegate(this));
 
   // We provide the sorting proxy model
   QSortFilterProxyModel *proxyModel = new QSortFilterProxyModel(this);
@@ -101,8 +147,7 @@ pqDataInformationWidget::pqDataInformationWidget(QWidget* _parent /*=0*/)
     SIGNAL(customContextMenuRequested(const QPoint&)),
     this, SLOT(showBodyContextMenu(const QPoint&)));
 
-  new pqDataInformationModelSelectionAdaptor(this->View->selectionModel(),
-    pqApplicationCore::instance()->getSelectionModel(), this);
+  new pqDataInformationModelSelectionAdaptor(this->View->selectionModel());
 }
 
 //-----------------------------------------------------------------------------

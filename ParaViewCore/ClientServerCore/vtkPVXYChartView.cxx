@@ -28,7 +28,7 @@
 #include "vtkTextProperty.h"
 #include "vtkXYChartRepresentation.h"
 
-#include "vtkstd/string"
+#include "string"
 #include "vtksys/ios/sstream"
 
 #include "vtkCommand.h"
@@ -126,8 +126,8 @@ void vtkPVXYChartView::SetTitle(const char* title)
 {
   if (this->Chart)
     {
-    vtkstd::string tmp(title);
-    if (tmp.find("${TIME}") != vtkstd::string::npos)
+    std::string tmp(title);
+    if (tmp.find("${TIME}") != std::string::npos)
       {
       this->SetInternalTitle(title);
       }
@@ -316,22 +316,29 @@ void vtkPVXYChartView::SetAxisLabelPrecision(int index, int precision)
 }
 
 //----------------------------------------------------------------------------
-void vtkPVXYChartView::SetAxisBehavior(int index, int behavior)
+void vtkPVXYChartView::SetAxisRange(int index, double min, double max)
 {
   if (this->Chart)
     {
-    this->Chart->GetAxis(index)->SetBehavior(behavior);
+    vtkAxis* axis = this->Chart->GetAxis(index);
+    axis->SetBehavior(vtkAxis::FIXED);
+    axis->SetMinimum(min);
+    axis->SetMaximum(max);
     this->Chart->RecalculateBounds();
     }
 }
 
 //----------------------------------------------------------------------------
-void vtkPVXYChartView::SetAxisRange(int index, double min, double max)
+void vtkPVXYChartView::UnsetAxisRange(int index)
 {
-  if (this->Chart && this->Chart->GetAxis(index)->GetBehavior() > 0)
+  if (this->Chart)
     {
-    this->Chart->GetAxis(index)->SetMinimum(min);
-    this->Chart->GetAxis(index)->SetMaximum(max);
+    vtkAxis* axis = this->Chart->GetAxis(index);
+    axis->SetBehavior(vtkAxis::AUTO);
+
+    // we set some random min and max so we can notice them when they get used.
+    axis->SetMinimum(0.0);
+    axis->SetMaximum(6.66);
     this->Chart->RecalculateBounds();
     }
 }
@@ -493,9 +500,9 @@ void vtkPVXYChartView::Render(bool interactive)
   if (this->InternalTitle)
     {
     vtksys_ios::ostringstream new_title;
-    vtkstd::string title(this->InternalTitle);
+    std::string title(this->InternalTitle);
     size_t pos = title.find("${TIME}");
-    if (pos != vtkstd::string::npos)
+    if (pos != std::string::npos)
       {
       // The string was found - replace it and set the chart title.
       new_title << title.substr(0, pos)

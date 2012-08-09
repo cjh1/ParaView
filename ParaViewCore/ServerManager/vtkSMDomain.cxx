@@ -17,11 +17,13 @@
 #include "vtkCommand.h"
 #include "vtkPVXMLElement.h"
 #include "vtkSMProperty.h"
+#include "vtkSMProxy.h"
 #include "vtkWeakPointer.h"
+#include "vtkSMSession.h"
 
-#include <vtkstd/map>
+#include <map>
 #include "vtkStdString.h"
-
+#include <assert.h>
 
 struct vtkSMDomainInternals
 {
@@ -30,7 +32,7 @@ struct vtkSMDomainInternals
   // property since both the domain and the required property belong to the same
   // proxy, so they will be deleted only when the proxy disappears.
   typedef 
-  vtkstd::map<vtkStdString, vtkWeakPointer<vtkSMProperty> > PropertyMap;
+  std::map<vtkStdString, vtkWeakPointer<vtkSMProperty> > PropertyMap;
   PropertyMap RequiredProperties;
 };
 
@@ -80,6 +82,9 @@ void vtkSMDomain::RemoveRequiredProperty(vtkSMProperty* prop)
 //---------------------------------------------------------------------------
 int vtkSMDomain::ReadXMLAttributes(vtkSMProperty* prop, vtkPVXMLElement* element)
 {
+  assert("Property and proxy should be properly set" && prop && prop->GetParent());
+  this->SetSession(prop->GetParent()->GetSession());
+
   int isOptional;
   int retVal = element->GetScalarAttribute("optional", &isOptional);
   if(retVal) 
@@ -115,6 +120,12 @@ int vtkSMDomain::ReadXMLAttributes(vtkSMProperty* prop, vtkPVXMLElement* element
               if (req)
                 {
                 this->AddRequiredProperty(req, function);
+                }
+              else
+                {
+                vtkWarningMacro(
+                  "You have added a domain dependency to a property named '"
+                  << name << "' which does not exist.");
                 }
               }
             }

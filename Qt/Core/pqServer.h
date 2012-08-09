@@ -40,18 +40,20 @@ class vtkPVServerInformation;
 class vtkPVXMLElement;
 class vtkSMApplication;
 class vtkSMProxy;
-class vtkSMProxyManager;
+class vtkSMProxySelectionModel;
 class vtkSMRenderViewProxy;
 class vtkSMSession;
+class vtkSMSessionProxyManager;
 
 #include "pqCoreExport.h"
 #include "pqServerManagerModelItem.h"
 #include "pqServerResource.h"
+#include "pqTimer.h"
 #include "vtkSmartPointer.h"
 #include "vtkSMMessageMinimal.h"
 #include "vtkWeakPointer.h"
+
 #include <QPointer>
-#include <QTimer>
 
 /// pqServer (should be renamed to pqSession) is a pqServerManagerModelItem
 /// subclass that represents a vtkSMSession. Besides providing API to access
@@ -74,7 +76,14 @@ public:
   vtkIdType GetConnectionID() const;
 
   /// Returns the proxy manager for this session.
-  vtkSMProxyManager* proxyManager() const;
+  vtkSMSessionProxyManager* proxyManager() const;
+
+  /// Sources selection model is used to keep track of sources currently
+  /// selected on this session/server-connection.
+  vtkSMProxySelectionModel* activeSourcesSelectionModel() const;
+
+  /// View selection model is used to keep track of active view.
+  vtkSMProxySelectionModel* activeViewSelectionModel() const;
 
   /// Return the number of data server partitions on this 
   /// server connection. A convenience method.
@@ -182,13 +191,16 @@ signals:
   ///    QObject::connect( server, SIGNAL(sentFromOtherClient(vtkSMMessage*)),
   ///                      this,   SLOT(onClientMessage(vtkSMMessage*)),
   ///                      Qt::QueuedConnection);
-  void sentFromOtherClient(vtkSMMessage* msg);
+  void sentFromOtherClient(pqServer*,vtkSMMessage* msg);
 
   /// Signal triggered when user information get updated
   void triggeredMasterUser(int);
   void triggeredUserName(int, QString&);
   void triggeredUserListChanged();
   void triggerFollowCamera(int);
+
+  /// Forward request for disconnection
+  void closeSessionRequest();
 
 public slots:
   /// Allow user to broadcast to other client a given message
@@ -205,7 +217,7 @@ protected slots:
 
   /// Called by vtkSMCollaborationManager when associated message happen.
   /// This will convert the given parameter into vtkSMMessage and
-  /// emit sentFromOtherClient(vtkSMMessage*) signal.
+  /// emit sentFromOtherClient(pqServer*,vtkSMMessage*) signal.
   void onCollaborationCommunication(vtkObject*, unsigned long, void*, void*);
 
 private:
@@ -216,13 +228,15 @@ private:
   vtkIdType ConnectionID;
   vtkWeakPointer<vtkSMProxy> GlobalMapperPropertiesProxy;
   vtkWeakPointer<vtkSMSession> Session;
+  vtkWeakPointer<vtkSMProxySelectionModel> ActiveSources;
+  vtkWeakPointer<vtkSMProxySelectionModel> ActiveView;
 
   // TODO:
   // Each connection will eventually have a PVOptions object. 
   // For now, this is same as the vtkProcessModule::Options.
   vtkSmartPointer<vtkPVOptions> Options;
 
-  QTimer IdleCollaborationTimer;
+  pqTimer IdleCollaborationTimer;
 
   class pqInternals;
   pqInternals* Internals;

@@ -20,6 +20,7 @@ ENDIF(NOT WIN32)
 
 SET (Kit_SRCS
   vtk3DWidgetRepresentation.cxx
+  vtkAMRVolumeRepresentation.cxx
   vtkCaveSynchronizedRenderers.cxx
   vtkChartRepresentation.cxx
   vtkClientServerMoveData.cxx
@@ -30,17 +31,16 @@ SET (Kit_SRCS
   vtkGeometryRepresentation.cxx
   vtkGeometryRepresentationWithFaces.cxx
   vtkGlyph3DRepresentation.cxx
-  vtkImageSliceDataDeliveryFilter.cxx
   vtkPVImageSliceMapper.cxx
   vtkImageSliceRepresentation.cxx
   vtkImageVolumeRepresentation.cxx
+  vtkMoleculeRepresentation.cxx
   vtkMPIMoveData.cxx
   vtkMPIMToNSocketConnection.cxx
   vtkMPIMToNSocketConnectionPortInformation.cxx
   vtkNetworkAccessManager.cxx
   vtkNetworkImageSource.cxx
   vtkOutlineRepresentation.cxx
-  vtkPV2DRenderView.cxx
   vtkPVAlgorithmPortsInformation.cxx
   vtkPVArrayInformation.cxx
   vtkPVBarChartView.cxx
@@ -59,11 +59,18 @@ SET (Kit_SRCS
   vtkPVDataInformation.cxx
   vtkPVDataRepresentation.cxx
   vtkPVDataRepresentationPipeline.cxx
+  vtkProcessModuleAutoMPI.cxx
+  vtkProcessModule.cxx
+  vtkPVDataDeliveryManager.cxx
+  vtkPVDataInformationHelper.cxx
   vtkPVDataSetAttributesInformation.cxx
   vtkPVDataSizeInformation.cxx
+  vtkPVDisableStackTraceSignalHandler.cxx
   vtkPVDisplayInformation.cxx
+  vtkPVEnableStackTraceSignalHandler.cxx
   vtkPVEnvironmentInformation.cxx
   vtkPVEnvironmentInformationHelper.cxx
+  vtkPVExtractSelection.cxx
   vtkPVFileInformation.cxx
   vtkPVFileInformationHelper.cxx
   vtkPVGenericAttributeInformation.cxx
@@ -71,38 +78,40 @@ SET (Kit_SRCS
   vtkPVInformation.cxx
   vtkPVLastSelectionInformation.cxx
   vtkPVLineChartView.cxx
+  vtkPVMemoryUseInformation.cxx
   vtkPVMultiClientsInformation.cxx
   vtkPVOpenGLExtensionsInformation.cxx
   vtkPVOptions.cxx
   vtkPVOptionsXMLParser.cxx
   vtkPVParallelCoordinatesChartView.cxx
   vtkPVParallelCoordinatesRepresentation.cxx
-  vtkPVPlotMatrixView.cxx
   vtkPVPlotMatrixRepresentation.cxx
+  vtkPVPlotMatrixView.cxx
   vtkPVPlugin.cxx
   vtkPVPluginLoader.cxx
-  vtkPVPluginTracker.cxx
   vtkPVPluginsInformation.cxx
+  vtkPVPluginTracker.cxx
   vtkPVProgressHandler.cxx
   vtkPVPythonModule.cxx
   vtkPVPythonPluginInterface.cxx
+  vtkPVRayCastPickingHelper.cxx
   vtkPVRenderView.cxx
   vtkPVRepresentedDataInformation.cxx
-  vtkPVSILInformation.cxx
   vtkPVSelectionInformation.cxx
   vtkPVServerInformation.cxx
   vtkPVServerManagerPluginInterface.cxx
   vtkPVServerOptions.cxx
   vtkPVSession.cxx
+  vtkPVSILInformation.cxx
+  vtkPVSingleOutputExtractSelection.cxx
   vtkPVSynchronizedRenderer.cxx
   vtkPVSynchronizedRenderWindows.cxx
+  vtkPVSystemConfigInformation.cxx
   vtkPVSystemInformation.cxx
   vtkPVTemporalDataInformation.cxx
   vtkPVTimerInformation.cxx
   vtkPVView.cxx
   vtkPVXYChartView.cxx
-  vtkProcessModule.cxx
-  vtkProcessModuleAutoMPI.cxx
   vtkSelectionDeliveryFilter.cxx
   vtkSelectionRepresentation.cxx
   vtkSession.cxx
@@ -111,13 +120,12 @@ SET (Kit_SRCS
   vtkSpreadSheetView.cxx
   vtkTCPNetworkAccessManager.cxx
   vtkTextSourceRepresentation.cxx
-  vtkUnstructuredDataDeliveryFilter.cxx
   vtkUnstructuredGridVolumeRepresentation.cxx
   vtkXMLPVAnimationWriter.cxx
   vtkXYChartRepresentation.cxx
 )
 
-IF (PARAVIEW_USE_ICE_T AND VTK_USE_MPI)
+IF (PARAVIEW_USE_ICE_T AND PARAVIEW_USE_MPI)
   SET (Kit_SRCS
     ${Kit_SRCS}
     vtkIceTSynchronizedRenderers.cxx)
@@ -133,13 +141,16 @@ IF (PARAVIEW_USE_ICE_T AND VTK_USE_MPI)
   ELSE(APPLE)
     INCLUDE_DIRECTORIES(${OPENGL_INCLUDE_DIR})
   ENDIF(APPLE)
-ENDIF (PARAVIEW_USE_ICE_T AND VTK_USE_MPI)
+ENDIF (PARAVIEW_USE_ICE_T AND PARAVIEW_USE_MPI)
 
 IF(PARAVIEW_ENABLE_PYTHON)
   SET(Kit_SRCS ${Kit_SRCS}
+    vtkAnnotateGlobalDataFilter.cxx
     vtkPythonAnimationCue.cxx
     vtkPythonCalculator.cxx
     vtkPythonProgrammableFilter.cxx
+    vtkPythonExtractSelection.cxx
+    vtkPythonAnnotationFilter.cxx
     )
   SET (KIT_LIBS ${KIT_LIBS} ${PYTHON_LIBRARIES} vtkPVPythonInterpretor)
   INCLUDE_DIRECTORIES(
@@ -162,6 +173,7 @@ SET_SOURCE_FILES_PROPERTIES(
 SET_SOURCE_FILES_PROPERTIES(
   vtkNetworkAccessManager.cxx
   vtkPVContextView.cxx
+  vtkPVDataInformationHelper.cxx
   vtkPVDataRepresentation.cxx
   vtkPVInformation.cxx
   vtkPVPlugin.cxx
@@ -169,6 +181,7 @@ SET_SOURCE_FILES_PROPERTIES(
   vtkPVPythonPluginInterface.cxx
   vtkPVServerManagerPluginInterface.cxx
   vtkPVSession.cxx
+  vtkPVSynchronizedRenderWindows.cxx
   vtkPVView.cxx
   vtkSession.cxx
   vtkTileDisplayHelper.cxx
@@ -185,7 +198,7 @@ INCLUDE_DIRECTORIES(
   ${VTK_ZLIB_INCLUDE_DIRS}
   )
 
-IF (VTK_USE_MPI)
+IF (PARAVIEW_USE_MPI)
   INCLUDE_DIRECTORIES(${MPI_INCLUDE_PATH})
   SET (Kit_SRCS ${Kit_SRCS} vtkPVMPICommunicator.cxx)
   SET_SOURCE_FILES_PROPERTIES(
@@ -199,7 +212,7 @@ IF (VTK_USE_MPI)
   IF (MPI_EXTRA_LIBRARY)
     SET(KIT_LIBS ${KIT_LIBS} "${MPI_EXTRA_LIBRARY}")
   ENDIF (MPI_EXTRA_LIBRARY)
-ENDIF (VTK_USE_MPI)
+ENDIF (PARAVIEW_USE_MPI)
 
 # for vtkPVFileInformation
 IF(WIN32)
@@ -230,7 +243,7 @@ INCLUDE_DIRECTORIES(${VTKCLIENTSERVER_INCLUDE_DIR})
 # Create ClientServer wrappers for ParaView classes.
 SET(_VTK_BINARY_DIR "${VTK_BINARY_DIR}")
 SET(VTK_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
-INCLUDE(${VTK_CMAKE_DIR}/vtkExportKit.cmake)
+INCLUDE(${ParaView_CMAKE_DIR}/VTKMono/vtkExportKit.cmake)
 VTK_EXPORT_KIT("${KIT}" "${KIT_UPCASE}" "${Kit_SRCS}")
 SET(VTK_BINARY_DIR "${_VTK_BINARY_DIR}")
 
@@ -243,7 +256,7 @@ PV_WRAP_VTK_CS("${KIT}" "${KIT_UPCASE}" "${KIT_WRAP_DEPS}")
 IF (PARAVIEW_ENABLE_PYTHON)
   SET(Kit_PYTHON_EXTRA_SRCS)
   SET(KIT_PYTHON_LIBS
-    vtkViewsPythonD
+    vtkViewsCorePythonD
     vtkPVVTKExtensionsPythonD
     )
   # Tell vtkWrapPython.cmake to set VTK_PYTHON_LIBRARIES for us.
@@ -265,7 +278,7 @@ ENDIF (PARAVIEW_ENABLE_PYTHON)
 
 
 # Create the library.
-VTK_ADD_LIBRARY(vtk${KIT}
+PVVTK_ADD_LIBRARY(vtk${KIT}
   ${Kit_SRCS}
   ${KitInstantiator_SRCS}
   )
@@ -273,6 +286,11 @@ TARGET_LINK_LIBRARIES(vtk${KIT}
   vtkPVVTKExtensions
   vtkPVVTKExtensionsCS
   ${KIT_LIBS}
+  vtkViewsCore
+  vtkViewsContext2D
+  vtkRenderingLabel
+  vtkRenderingVolume
+  vtkDomainsChemistry
 )
 
 IF(NOT PV_INSTALL_NO_LIBRARIES)

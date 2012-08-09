@@ -15,8 +15,8 @@
 
 #include <ctype.h>
 #include <vtksys/ios/sstream>
-#include <vtkstd/string>
-#include <vtkstd/vector>
+#include <string>
+#include <vector>
 #include <vtkIOStream.h>
 
 vtkStandardNewMacro(vtkPEnSightGoldReader);
@@ -28,9 +28,9 @@ public:
   double UndefCoordinates;
   double UndefBlock;
   double UndefElementTypes;
-  vtkstd::vector<vtkIdType> PartialCoordinates;
-  vtkstd::vector<vtkIdType> PartialBlock;
-  vtkstd::vector<vtkIdType> PartialElementTypes;
+  std::vector<vtkIdType> PartialCoordinates;
+  std::vector<vtkIdType> PartialBlock;
+  std::vector<vtkIdType> PartialElementTypes;
 };
 //ETX
 
@@ -74,7 +74,7 @@ int vtkPEnSightGoldReader::ReadGeometryFile(const char* fileName, int timeStep,
     vtkErrorMacro("A GeometryFileName must be specified in the case file.");
     return 0;
     }
-  vtkstd::string sfilename;
+  std::string sfilename;
   if (this->FilePath)
     {
     sfilename = this->FilePath;
@@ -135,7 +135,7 @@ int vtkPEnSightGoldReader::ReadGeometryFile(const char* fileName, int timeStep,
       this->ReadLine(line);
       if (this->FileOffsets.find(fileName) == this->FileOffsets.end())
         {
-        vtkstd::map<int, long> tsMap;
+        std::map<int, long> tsMap;
         this->FileOffsets[fileName] = tsMap;
         }
       this->FileOffsets[fileName][j] = this->IS->tellg();
@@ -278,7 +278,7 @@ int vtkPEnSightGoldReader::ReadMeasuredGeometryFile(
     vtkErrorMacro("A MeasuredFileName must be specified in the case file.");
     return 0;
     }
-  vtkstd::string sfilename;
+  std::string sfilename;
   if (this->FilePath)
     {
     sfilename = this->FilePath;
@@ -344,7 +344,7 @@ int vtkPEnSightGoldReader::ReadMeasuredGeometryFile(
       this->ReadLine(line);
       if (this->FileOffsets.find(fileName) == this->FileOffsets.end())
         {
-        vtkstd::map<int, long> tsMap;
+        std::map<int, long> tsMap;
         this->FileOffsets[fileName] = tsMap;
         }
       this->FileOffsets[fileName][j] = this->IS->tellg();
@@ -445,7 +445,7 @@ int vtkPEnSightGoldReader::ReadScalarsPerNode(const char* fileName, const char* 
     vtkErrorMacro("NULL ScalarPerNode variable file name");
     return 0;
     }
-  vtkstd::string sfilename;
+  std::string sfilename;
   if (this->FilePath)
     {
     sfilename = this->FilePath;
@@ -497,7 +497,7 @@ int vtkPEnSightGoldReader::ReadScalarsPerNode(const char* fileName, const char* 
         }
       if (this->FileOffsets.find(fileName) == this->FileOffsets.end())
         {
-        vtkstd::map<int, long> tsMap;
+        std::map<int, long> tsMap;
         this->FileOffsets[fileName] = tsMap;
         }
       this->FileOffsets[fileName][j] = this->IS->tellg();
@@ -669,7 +669,7 @@ int vtkPEnSightGoldReader::ReadVectorsPerNode(const char* fileName, const char* 
     vtkErrorMacro("NULL VectorPerNode variable file name");
     return 0;
     }
-  vtkstd::string sfilename;
+  std::string sfilename;
   if (this->FilePath)
     {
     sfilename = this->FilePath;
@@ -721,7 +721,7 @@ int vtkPEnSightGoldReader::ReadVectorsPerNode(const char* fileName, const char* 
         }
       if (this->FileOffsets.find(fileName) == this->FileOffsets.end())
         {
-        vtkstd::map<int, long> tsMap;
+        std::map<int, long> tsMap;
         this->FileOffsets[fileName] = tsMap;
         }
       this->FileOffsets[fileName][j] = this->IS->tellg();
@@ -850,7 +850,7 @@ int vtkPEnSightGoldReader::ReadTensorsPerNode(const char* fileName, const char* 
     vtkErrorMacro("NULL TensorPerNode variable file name");
     return 0;
     }
-  vtkstd::string sfilename;
+  std::string sfilename;
   if (this->FilePath)
     {
     sfilename = this->FilePath;
@@ -902,7 +902,7 @@ int vtkPEnSightGoldReader::ReadTensorsPerNode(const char* fileName, const char* 
         }
       if (this->FileOffsets.find(fileName) == this->FileOffsets.end())
         {
-        vtkstd::map<int, long> tsMap;
+        std::map<int, long> tsMap;
         this->FileOffsets[fileName] = tsMap;
         }
       this->FileOffsets[fileName][j] = this->IS->tellg();
@@ -980,7 +980,7 @@ int vtkPEnSightGoldReader::ReadScalarsPerElement(const char* fileName,
     vtkErrorMacro("NULL ScalarPerElement variable file name");
     return 0;
     }
-  vtkstd::string sfilename;
+  std::string sfilename;
   if (this->FilePath)
     {
     sfilename = this->FilePath;
@@ -1032,7 +1032,7 @@ int vtkPEnSightGoldReader::ReadScalarsPerElement(const char* fileName,
         }
       if (this->FileOffsets.find(fileName) == this->FileOffsets.end())
         {
-        vtkstd::map<int, long> tsMap;
+        std::map<int, long> tsMap;
         this->FileOffsets[fileName] = tsMap;
         }
       this->FileOffsets[fileName][j] = this->IS->tellg();
@@ -1189,7 +1189,7 @@ int vtkPEnSightGoldReader::ReadVectorsPerElement(const char* fileName,
     vtkErrorMacro("NULL VectorPerElement variable file name");
     return 0;
     }
-  vtkstd::string sfilename;
+  std::string sfilename;
   if (this->FilePath)
     {
     sfilename = this->FilePath;
@@ -1241,7 +1241,7 @@ int vtkPEnSightGoldReader::ReadVectorsPerElement(const char* fileName,
         }
       if (this->FileOffsets.find(fileName) == this->FileOffsets.end())
         {
-        vtkstd::map<int, long> tsMap;
+        std::map<int, long> tsMap;
         this->FileOffsets[fileName] = tsMap;
         }
       this->FileOffsets[fileName][j] = this->IS->tellg();
@@ -1360,7 +1360,7 @@ int vtkPEnSightGoldReader::ReadTensorsPerElement(const char* fileName,
     vtkErrorMacro("NULL TensorPerElement variable file name");
     return 0;
     }
-  vtkstd::string sfilename;
+  std::string sfilename;
   if (this->FilePath)
     {
     sfilename = this->FilePath;
@@ -1412,7 +1412,7 @@ int vtkPEnSightGoldReader::ReadTensorsPerElement(const char* fileName,
         }
       if (this->FileOffsets.find(fileName) == this->FileOffsets.end())
         {
-        vtkstd::map<int, long> tsMap;
+        std::map<int, long> tsMap;
         this->FileOffsets[fileName] = tsMap;
         }
       this->FileOffsets[fileName][j] = this->IS->tellg();
@@ -2738,8 +2738,8 @@ int vtkPEnSightGoldReader::CreateStructuredGridOutput(int partId,
     }
 
   output->SetDimensions(newDimensions);
-  output->SetWholeExtent(
-                         0, newDimensions[0]-1, 0, newDimensions[1]-1, 0, newDimensions[2]-1);
+//   output->SetWholeExtent(
+//                          0, newDimensions[0]-1, 0, newDimensions[1]-1, 0, newDimensions[2]-1);
   points->Allocate(this->GetPointIds(partId)->GetLocalNumberOfIds());
 
 
@@ -2865,8 +2865,8 @@ int vtkPEnSightGoldReader::CreateRectilinearGridOutput(int partId,
     }
 
   output->SetDimensions(newDimensions);
-  output->SetWholeExtent(
-                         0, newDimensions[0]-1, 0, newDimensions[1]-1, 0, newDimensions[2]-1);
+//   output->SetWholeExtent(
+//                          0, newDimensions[0]-1, 0, newDimensions[1]-1, 0, newDimensions[2]-1);
   xCoords->Allocate(newDimensions[0]);
   yCoords->Allocate(newDimensions[1]);
   zCoords->Allocate(newDimensions[2]);
@@ -2998,8 +2998,8 @@ int vtkPEnSightGoldReader::CreateImageDataOutput(int partId,
     }
 
   output->SetDimensions(newDimensions);
-  output->SetWholeExtent(
-                         0, newDimensions[0]-1, 0, newDimensions[1]-1, 0, newDimensions[2]-1);
+//   output->SetWholeExtent(
+//                          0, newDimensions[0]-1, 0, newDimensions[1]-1, 0, newDimensions[2]-1);
 
   for (i = 0; i < 3; i++)
     {
@@ -3275,6 +3275,7 @@ int vtkPEnSightGoldReader::InjectCoordinatesAtEnd(vtkUnstructuredGrid* output, l
   vtkPointData* pointData = output->GetPointData();
   vtkDataArray* globalNodeIds = this->GetPointIds(partId)->GenerateGlobalIdsArray("GlobalNodeId");
   pointData->SetGlobalIds(globalNodeIds);
+  globalNodeIds->Delete();
 
   // We do not inject global Element Ids: It is not required for D3, for example,
   // and it consumes a lot of memory

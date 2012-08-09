@@ -28,15 +28,16 @@
 #include "vtkStreamingDemandDrivenPipeline.h"
 
 #include <vtksys/SystemTools.hxx>
-#include <vtkstd/algorithm>
-#include <vtkstd/map>
-#include <vtkstd/string>
+#include <algorithm>
+#include <sstream>
+#include <map>
+#include <string>
 
 vtkStandardNewMacro(vtkPythonProgrammableFilter);
 
 //----------------------------------------------------------------------------
 
-typedef vtkstd::map<vtkstd::string, vtkstd::string> ParametersT;
+typedef std::map<std::string, std::string> ParametersT;
 
 class vtkPythonProgrammableFilterImplementation
 {
@@ -77,6 +78,16 @@ vtkPVPythonInterpretor* vtkPythonProgrammableFilter::GetGlobalPipelineInterpreto
     obs->UnRegister(0);
     }
   return vtkPythonProgrammableFilter::GlobalPipelineInterpretor;
+}
+
+//----------------------------------------------------------------------------
+void vtkPythonProgrammableFilter::DeleteGlobalPythonInterpretor()
+{
+  if(GlobalPipelineInterpretor)
+    {
+    GlobalPipelineInterpretor->Delete();
+    GlobalPipelineInterpretor = 0;
+    }
 }
 
 //----------------------------------------------------------------------------
@@ -128,7 +139,7 @@ int vtkPythonProgrammableFilter::RequestDataObject(
         if (!output || !output->IsA(input->GetClassName()))
           {
           vtkDataObject* newOutput = input->NewInstance();
-          newOutput->SetPipelineInformation(info);
+          info->Set(vtkDataObject::DATA_OBJECT(), newOutput);
           newOutput->Delete();
           this->GetOutputPortInformation(0)->Set(
             vtkDataObject::DATA_EXTENT_TYPE(), newOutput->GetExtentType());
@@ -157,7 +168,7 @@ int vtkPythonProgrammableFilter::RequestDataObject(
                       << outTypeStr);
         return 0;
         }
-      newOutput->SetPipelineInformation(info);
+      info->Set(vtkDataObject::DATA_OBJECT(), newOutput);
       this->GetOutputPortInformation(0)->Set(
         vtkDataObject::DATA_EXTENT_TYPE(), newOutput->GetExtentType());
       newOutput->Delete();
@@ -212,11 +223,11 @@ int vtkPythonProgrammableFilter::RequestUpdateExtent(
 }
 
 //----------------------------------------------------------------------------
-void vtkPythonProgrammableFilter::SetParameter(const char *raw_name,
+void vtkPythonProgrammableFilter::SetParameterInternal(const char *raw_name,
                                                const char *raw_value)
 {
-  const vtkstd::string name = raw_name ? raw_name : "";
-  const vtkstd::string value = raw_value ? raw_value : "";
+  const std::string name = raw_name ? raw_name : "";
+  const std::string value = raw_value ? raw_value : "";
 
   if(name.empty())
     {
@@ -227,6 +238,42 @@ void vtkPythonProgrammableFilter::SetParameter(const char *raw_name,
   this->Implementation->Parameters[name] = value;
   this->Modified();
 }
+
+void vtkPythonProgrammableFilter::SetParameter(const char *raw_name,
+                                               const int value)
+{
+  std::ostringstream buf;
+  buf << value;
+  this->SetParameterInternal(raw_name, buf.str().c_str() );
+}
+
+void vtkPythonProgrammableFilter::SetParameter(const char *raw_name,
+                                               const double value)
+{
+  std::ostringstream buf;
+  buf << value;
+  this->SetParameterInternal(raw_name, buf.str().c_str() );
+}
+
+void vtkPythonProgrammableFilter::SetParameter(const char *raw_name,
+                                               const char *value)
+{
+  std::ostringstream buf;
+  buf << value;
+  this->SetParameterInternal(raw_name, buf.str().c_str() );
+}
+
+void vtkPythonProgrammableFilter::SetParameter(
+    const char *raw_name,
+    const double value1, 
+    const double value2,
+    const double value3)
+{
+  std::ostringstream buf;
+  buf << value1 << value2 << value3;
+  this->SetParameterInternal(raw_name, buf.str().c_str() );
+}
+
 
 //----------------------------------------------------------------------------
 void vtkPythonProgrammableFilter::ClearParameters()
@@ -259,9 +306,9 @@ void vtkPythonProgrammableFilter::Exec(const char* script,
   // Prepend the paths defined in PythonPath to sys.path
   if (this->PythonPath)
     {
-    vtkstd::string pathscript;
+    std::string pathscript;
     pathscript += "import sys\n";
-    vtkstd::vector<vtksys::String> paths = vtksys::SystemTools::SplitString(
+    std::vector<vtksys::String> paths = vtksys::SystemTools::SplitString(
       this->PythonPath, ';');
     for (unsigned int cc=0; cc < static_cast<unsigned int>(paths.size()); cc++)
       {
@@ -279,7 +326,7 @@ void vtkPythonProgrammableFilter::Exec(const char* script,
     }
 
   // Construct a script that defines a function
-  vtkstd::string fscript;
+  std::string fscript;
   fscript  = "def ";
   fscript += funcname;
 
@@ -297,7 +344,7 @@ void vtkPythonProgrammableFilter::Exec(const char* script,
   fscript += "  ";
 
   // Replace tabs with two spaces
-  vtkstd::string orgscript;
+  std::string orgscript;
   size_t len = strlen(script);
   for(size_t i=0; i< len; i++)
     {
@@ -312,9 +359,9 @@ void vtkPythonProgrammableFilter::Exec(const char* script,
     }
   // Remove DOS line endings. They confuse the indentation code below.
   orgscript.erase(
-    vtkstd::remove(orgscript.begin(), orgscript.end(), '\r'), orgscript.end());
+    std::remove(orgscript.begin(), orgscript.end(), '\r'), orgscript.end());
 
-  vtkstd::string::iterator it = orgscript.begin();
+  std::string::iterator it = orgscript.begin();
   for(; it != orgscript.end(); it++)
     {
     fscript += *it;
@@ -327,7 +374,7 @@ void vtkPythonProgrammableFilter::Exec(const char* script,
   fscript += "\n";
   vtkPythonProgrammableFilter::GetGlobalPipelineInterpretor()->RunSimpleString(fscript.c_str());
 
-  vtkstd::string runscript;
+  std::string runscript;
 
   runscript += "import paraview\n";
   runscript += "paraview.fromFilter = True\n";

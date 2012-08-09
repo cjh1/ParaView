@@ -32,7 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "pqFileDialogModel.h"
 
-#include <vtkstd/algorithm>
+#include <algorithm>
 
 #include <QStyle>
 #include <QDir>
@@ -52,6 +52,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <vtkSMIntVectorProperty.h>
 #include <vtkSMProxy.h>
 #include <vtkSMProxyManager.h>
+#include <vtkSMSessionProxyManager.h>
 #include <vtkSMStringVectorProperty.h>
 #include <vtkStringList.h>
 
@@ -63,7 +64,9 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 class pqFileDialogModelFileInfo
 {
 public:
-  pqFileDialogModelFileInfo()
+  pqFileDialogModelFileInfo():
+    Type(vtkPVFileInformation::INVALID),
+    Hidden(false)
   {
   }
 
@@ -211,7 +214,7 @@ bool CaseInsensitiveSort(const pqFileDialogModelFileInfo& A, const
 }
 
 class CaseInsensitiveSortGroup
-  : public vtkstd::binary_function<pqFileDialogModelFileInfo, pqFileDialogModelFileInfo, bool>
+  : public std::binary_function<pqFileDialogModelFileInfo, pqFileDialogModelFileInfo, bool>
 {
 public:
   CaseInsensitiveSortGroup(const QString& groupName)
@@ -246,7 +249,7 @@ public:
     // if we are doing remote browsing
     if(server)
       {
-      vtkSMProxyManager* pxm = server->proxyManager();
+      vtkSMSessionProxyManager* pxm = server->proxyManager();
 
       vtkSMProxy* helper = pxm->NewProxy("misc", "FileInformationHelper");
       this->FileInformationHelperProxy = helper;
@@ -431,32 +434,16 @@ public:
     return results;
     }
 
-  bool isHidden(const QModelIndex& Index)
+  bool isHidden(const QModelIndex& idx)
     {
-    const int size = this->FileList.size();
-    if(Index.row() >= size)
-      return false;
-
-    QModelIndex p = Index.parent();
-    if ( p.isValid() && p.row() < size)
-      {
-      pqFileDialogModelFileInfo& file = this->FileList[p.row()];
-      const QList<pqFileDialogModelFileInfo>& grp = file.group();
-      if(Index.row() < grp.size())
-        {
-        return grp[Index.row()].isHidden();
-        }
-      }
-    return this->FileList[Index.row()].isHidden();
+    const pqFileDialogModelFileInfo* info = this->infoForIndex(idx);
+    return info? info->isHidden() : false;
     }
 
-  bool isDir(const QModelIndex& Index)
+  bool isDir(const QModelIndex& idx)
     {
-    if(Index.row() >= this->FileList.size())
-      return false;
-
-    pqFileDialogModelFileInfo& file = this->FileList[Index.row()];
-    return vtkPVFileInformation::IsDirectory(file.type());
+    const pqFileDialogModelFileInfo* info = this->infoForIndex(idx);
+    return info? vtkPVFileInformation::IsDirectory(info->type()) : false;
     }
 
   bool isRemote()
@@ -566,7 +553,6 @@ bool pqFileDialogModel::isHidden( const QModelIndex&  Index)
     return this->Implementation->isHidden(Index);
 
   return false;
-
 }
 
 bool pqFileDialogModel::isDir(const QModelIndex& Index)
@@ -610,8 +596,10 @@ bool pqFileDialogModel::mkdir(const QString& dirName)
 
   if (this->Implementation->isRemote())
     {
-    vtkSMDirectoryProxy* dirProxy =  vtkSMDirectoryProxy::SafeDownCast(
-      vtkSMProxyManager::GetProxyManager()->NewProxy("misc", "Directory"));
+    vtkSMDirectoryProxy* dirProxy =
+        vtkSMDirectoryProxy::SafeDownCast(
+            this->Implementation->getServer()->proxyManager()->NewProxy(
+                "misc", "Directory"));
     ret = dirProxy->MakeDirectory(dirPath.toAscii().data(),
       vtkProcessModule::DATA_SERVER);
     dirProxy->Delete();
@@ -645,8 +633,10 @@ bool pqFileDialogModel::rmdir(const QString& dirName)
 
   if (this->Implementation->isRemote())
     {
-    vtkSMDirectoryProxy* dirProxy =  vtkSMDirectoryProxy::SafeDownCast(
-      vtkSMProxyManager::GetProxyManager()->NewProxy("misc", "Directory"));
+    vtkSMDirectoryProxy* dirProxy =
+        vtkSMDirectoryProxy::SafeDownCast(
+            this->Implementation->getServer()->proxyManager()->NewProxy(
+                "misc", "Directory"));
     ret = dirProxy->DeleteDirectory(dirPath.toAscii().data(),
       vtkProcessModule::DATA_SERVER);
     dirProxy->Delete();
@@ -702,8 +692,10 @@ bool pqFileDialogModel::rename(const QString& oldname, const QString& newname)
 
   if (this->Implementation->isRemote())
     {
-    vtkSMDirectoryProxy* dirProxy =  vtkSMDirectoryProxy::SafeDownCast(
-      vtkSMProxyManager::GetProxyManager()->NewProxy("misc", "Directory"));
+    vtkSMDirectoryProxy* dirProxy =
+        vtkSMDirectoryProxy::SafeDownCast(
+            this->Implementation->getServer()->proxyManager()->NewProxy(
+                "misc", "Directory"));
     ret = dirProxy->Rename(
       oldPath.toAscii().data(), newPath.toAscii().data(),
       vtkProcessModule::DATA_SERVER);

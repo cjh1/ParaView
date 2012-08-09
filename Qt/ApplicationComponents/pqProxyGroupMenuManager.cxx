@@ -31,22 +31,24 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ========================================================================*/
 #include "pqProxyGroupMenuManager.h"
 
+#include "pqActiveObjects.h"
+#include "pqCoreUtilities.h"
 #include "pqPVApplicationCore.h"
 #include "pqServerManagerModel.h"
 #include "pqSetData.h"
 #include "pqSetName.h"
 #include "pqSettings.h"
 #include "vtkCollection.h"
+#include "vtkPVProxyDefinitionIterator.h"
 #include "vtkPVXMLElement.h"
 #include "vtkSMProxy.h"
-#include "vtkSMProxyManager.h"
 #include "vtkSMProxyDefinitionManager.h"
-#include "vtkPVProxyDefinitionIterator.h"
+#include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 
 #include "vtkSmartPointer.h"
 #include "vtkNew.h"
 
-#include <QDebug>
 #include <QMenu>
 #include <QMap>
 #include <QPointer>
@@ -95,6 +97,11 @@ public:
     };
 
   typedef QMap<QString, CategoryInfo> CategoryInfoMap;
+
+  pqInternal()
+  {
+    this->LocalActiveSession = NULL;
+  }
  
   void addProxy(const QString& pgroup, const QString& pname, const QString& icon)
     {
@@ -124,6 +131,9 @@ public:
   QSet<QString> ProxyDefinitionGroupToListen;
   QSet<unsigned long> CallBackIDs;
   QWidget Widget;
+  QPointer<QAction> SearchAction;
+  unsigned long ProxyManagerCallBackId;
+  void* LocalActiveSession;
 };
 
 //-----------------------------------------------------------------------------
@@ -146,12 +156,26 @@ pqProxyGroupMenuManager::pqProxyGroupMenuManager(
   QObject::connect(pqApplicationCore::instance()->getServerManagerModel(),
     SIGNAL(serverAdded(pqServer*)),
     this, SLOT(addProxyDefinitionUpdateObservers()));
+
+  QObject::connect(&pqActiveObjects::instance(),
+                   SIGNAL(serverChanged(pqServer*)),
+                   this, SLOT(lookForNewDefinitions()));
+
+  this->Internal->ProxyManagerCallBackId = pqCoreUtilities::connect(
+        vtkSMProxyManager::GetProxyManager(),
+        vtkSMProxyManager::ActiveSessionChanged,
+        this, SLOT(switchActiveServer()));
 }
 
 //-----------------------------------------------------------------------------
 pqProxyGroupMenuManager::~pqProxyGroupMenuManager()
 {
   this->removeProxyDefinitionUpdateObservers();
+  if(vtkSMProxyManager::IsInitialized())
+    {
+    vtkSMProxyManager::GetProxyManager()->RemoveObserver(
+          this->Internal->ProxyManagerCallBackId);
+    }
   delete this->Internal;
   this->Internal = 0;
 }
@@ -370,6 +394,10 @@ void pqProxyGroupMenuManager::populateMenu()
     QObject::disconnect(action, 0,  this, 0);
     }
   menuActions.clear();
+  if(!this->Internal->SearchAction.isNull())
+    {
+    this->Internal->SearchAction->deleteLater();
+    }
 
 
   QList<QMenu*> submenus = _menu->findChildren<QMenu*>();
@@ -380,9 +408,9 @@ void pqProxyGroupMenuManager::populateMenu()
   _menu->clear();
 
 #ifdef Q_WS_MAC
-  _menu->addAction("Search...\tAlt+Space", this, SLOT(quickLaunch()));
+  this->Internal->SearchAction = _menu->addAction("Search...\tAlt+Space", this, SLOT(quickLaunch()));
 #else
-  _menu->addAction("Search...\tCtrl+Space", this, SLOT(quickLaunch()));
+  this->Internal->SearchAction = _menu->addAction("Search...\tCtrl+Space", this, SLOT(quickLaunch()));
 #endif
 
   if (this->RecentlyUsedMenuSize > 0)
@@ -457,7 +485,8 @@ QAction* pqProxyGroupMenuManager::getAction(
     return 0;
     }
 
-  vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
+  vtkSMSessionProxyManager* pxm =
+      vtkSMProxyManager::GetProxyManager()->GetActiveSessionProxyManager();
   vtkSMProxy* prototype = pxm->GetPrototypeProxy(
     pgroup.toAscii().data(), pname.toAscii().data());
   if (prototype)
@@ -470,9 +499,12 @@ QAction* pqProxyGroupMenuManager::getAction(
       QStringList data_list;
       data_list << pgroup << pname;
       action << pqSetName(name) << pqSetData(data_list);
-      this->Internal->Widget.addAction(action); // we add action to ourselves so it won't get
-                               // deleted as we are updating the menu.
+      iter.value().Action = action;
       }
+
+    // Add action in the pool for the QuickSearch...
+    this->Internal->Widget.addAction(action);
+
     action->setText(label);
     QString icon = this->Internal->Proxies[key].Icon;
 
@@ -487,8 +519,9 @@ QAction* pqProxyGroupMenuManager::getAction(
       action->setIcon(QIcon(icon));
       }
 
-    QObject::connect(action, SIGNAL(triggered(bool)), 
-      this, SLOT(triggered()));
+    // this avoids creating duplicate connections.
+    QObject::disconnect(action, 0,  this, 0);
+    QObject::connect(action, SIGNAL(triggered(bool)), this, SLOT(triggered()));
     return action;
     }
   return 0;
@@ -533,9 +566,15 @@ void pqProxyGroupMenuManager::quickLaunch()
 }
 
 //-----------------------------------------------------------------------------
+QWidget* pqProxyGroupMenuManager::widgetActionsHolder() const
+{
+  return &this->Internal->Widget;
+}
+
+//-----------------------------------------------------------------------------
 QList<QAction*> pqProxyGroupMenuManager::actions() const
 {
-  return this->Internal->Widget.actions();
+  return this->widgetActionsHolder()->actions();
 }
 
 //-----------------------------------------------------------------------------
@@ -552,7 +591,8 @@ vtkSMProxy* pqProxyGroupMenuManager::getPrototype(QAction* action) const
     }
 
   QPair<QString, QString> key (data_list[0], data_list[1]);
-  vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
+  vtkSMSessionProxyManager* pxm =
+      vtkSMProxyManager::GetProxyManager()->GetActiveSessionProxyManager();
   return pxm->GetPrototypeProxy(
     key.first.toAscii().data(), key.second.toAscii().data());
 }
@@ -609,7 +649,11 @@ QList<QAction*> pqProxyGroupMenuManager::actions(const QString& category)
 void pqProxyGroupMenuManager::setEnabled(bool enable)
 {
   this->Enabled = enable;
+#ifndef Q_OS_MAC
+  // on Mac, with Qt 4.8.1, the enabling/disabling of the menu itself causes
+  // issues; the menu never re-enables itself after being disabled (BUG #13184).
   this->menu()->setEnabled(enable);
+#endif
 }
 //-----------------------------------------------------------------------------
 void pqProxyGroupMenuManager::addProxyDefinitionUpdateListener(const QString& proxyGroupName)
@@ -662,14 +706,14 @@ void pqProxyGroupMenuManager::addProxyDefinitionUpdateObservers()
 void pqProxyGroupMenuManager::lookForNewDefinitions()
 {
   // Look inside the group name that are tracked
-  vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
-  vtkSMProxyDefinitionManager* pxdm = pxm->GetProxyDefinitionManager();
+  vtkSMSessionProxyManager* pxm =
+      vtkSMProxyManager::GetProxyManager()->GetActiveSessionProxyManager();
 
-  if(this->Internal->ProxyDefinitionGroupToListen.size() == 0 || pxdm == NULL ||
-    pxdm->GetSession() == NULL)
+  if(this->Internal->ProxyDefinitionGroupToListen.size() == 0 || pxm == NULL)
     {
     return; // Nothing to look into...
     }
+  vtkSMProxyDefinitionManager* pxdm = pxm->GetProxyDefinitionManager();
 
   // Setup definition iterator
   vtkSmartPointer<vtkPVProxyDefinitionIterator> iter;
@@ -712,9 +756,15 @@ void pqProxyGroupMenuManager::lookForNewDefinitions()
 
         definitionSet.insert(QPair<QString, QString>(group, name));
         this->Internal->addProxy(group, name, NULL);
-        if(categoryName != NULL && this->Internal->Categories.contains(categoryName))
+        if(categoryName != NULL)
           {
           pqInternal::CategoryInfo& category = this->Internal->Categories[categoryName];
+          // If no label just make it up
+          if(category.Label.isEmpty())
+            {
+            category.Label = categoryName;
+            }
+
           if(!category.Proxies.contains(QPair<QString, QString>(group, name)))
             {
             category.Proxies.push_back(QPair<QString, QString>(group, name));
@@ -741,4 +791,26 @@ void pqProxyGroupMenuManager::lookForNewDefinitions()
 
   // Update the menu with the current definition
   this->populateMenu();
+}
+//-----------------------------------------------------------------------------
+void pqProxyGroupMenuManager::switchActiveServer()
+{
+  void* newActiveSession = vtkSMProxyManager::IsInitialized() ?
+        vtkSMProxyManager::GetProxyManager()->GetActiveSession() : NULL;
+
+  if(newActiveSession && newActiveSession != this->Internal->LocalActiveSession)
+    {
+    // Make sure we don't clear the menu twice for the same server
+    this->Internal->LocalActiveSession = newActiveSession;
+
+    // Clear the QuickSearch QAction pool...
+    QList<QAction*> action_list = this->Internal->Widget.actions();
+    foreach(QAction* action, action_list)
+      {
+      this->Internal->Widget.removeAction(action);
+      }
+
+    // Fill is back by updating the menu
+    this->lookForNewDefinitions();
+    }
 }

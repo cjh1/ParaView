@@ -50,7 +50,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqServer.h"
 #include "pqServerManagerModel.h"
 #include "pqSettings.h"
-#include "pqTwoDRenderView.h"
 #include "pqViewModuleInterface.h"
 
 typedef pqRenderView::ManipulatorType Manip;
@@ -72,8 +71,9 @@ public:
     }
   void updateLODResolutionLabel(int value)
     {
-    QVariant val(160-value + 10);
-
+    // value goes from 0 - 150, we map that to (160-10)
+    int display_value = (150-value) + 10;
+    QVariant val(display_value);
     this->lodResolutionLabel->setText(
       val.toString() + "x" + val.toString() + "x" + val.toString());
     }
@@ -86,12 +86,6 @@ public:
   void updateCompositeThresholdLabel(int value)
     {
     this->compositeThresholdLabel->setText(
-      QVariant(value/10.0).toString() + " MBytes");
-    }
-
-  void updateTileDisplayCompositeThresholdLabel(int value)
-    {
-    this->tileDisplayCompositeThresholdLabel->setText(
       QVariant(value/10.0).toString() + " MBytes");
     }
 
@@ -130,12 +124,6 @@ public:
       this->stillRenderSubsampleRateLabel->setText(
         QString("%1 Pixels").arg(value));
       }
-    }
-
-  void updateClientCollectLabel(double value_in_mb)
-    {
-    this->clientCollectLabel->setText(
-      QString("%1 MBytes").arg(value_in_mb));
     }
 };
 
@@ -181,7 +169,7 @@ void pqGlobalRenderViewOptions::init()
       << this->Internal->comboBoxCamera2D_8 << this->Internal->comboBoxCamera2D_9;
 
   this->Internal->CameraControl2DComboItemList //<< "FlyIn" << "FlyOut" << "Move"
-     << "Pan" << "Zoom";
+     << "Pan" << "Zoom" << "Roll" << "Rotate";
 
   for ( int cc = 0; cc < this->Internal->CameraControl2DComboBoxList.size(); cc++ )
     {
@@ -206,14 +194,15 @@ void pqGlobalRenderViewOptions::init()
   QObject::connect(this->Internal->lodResolution,
     SIGNAL(valueChanged(int)), this, SLOT(lodResolutionSliderChanged(int)));
 
+  QObject::connect(this->Internal->useOutlineForLOD,
+                  SIGNAL(toggled(bool)),
+                  this, SIGNAL(changesAvailable()));
+
   QObject::connect(this->Internal->outlineThreshold,
     SIGNAL(valueChanged(int)), this, SLOT(outlineThresholdSliderChanged(int)));
 
   QObject::connect(this->Internal->compositeThreshold,
     SIGNAL(valueChanged(int)), this, SLOT(compositeThresholdSliderChanged(int)));
-
-  QObject::connect(this->Internal->tileDisplayCompositeThreshold,
-    SIGNAL(valueChanged(int)), this, SLOT(tileDisplayCompositeThresholdSliderChanged(int)));
 
   QObject::connect(this->Internal->subsamplingRate,
     SIGNAL(valueChanged(int)), this, SLOT(subsamplingRateSliderChanged(int)));
@@ -230,10 +219,6 @@ void pqGlobalRenderViewOptions::init()
   QObject::connect(this->Internal->stillRenderSubsampleRate, 
     SIGNAL(valueChanged(int)), 
     this, SLOT(stillRenderSubsampleRateSliderChanged(int)));
-
-  QObject::connect(this->Internal->clientCollect,
-    SIGNAL(valueChanged(int)),
-    this, SLOT(clientCollectSliderChanged(int)));
 
   // enable the apply button when things are changed
   QObject::connect(this->Internal->enableLOD,
@@ -294,14 +279,6 @@ void pqGlobalRenderViewOptions::init()
                   this, SIGNAL(changesAvailable()));
 
   QObject::connect(this->Internal->enableStillRenderSubsampleRate,
-                  SIGNAL(toggled(bool)),
-                  this, SIGNAL(changesAvailable()));
-
-  QObject::connect(this->Internal->enableClientCollect,
-                  SIGNAL(toggled(bool)),
-                  this, SIGNAL(changesAvailable()));
-
-  QObject::connect(this->Internal->enableTileDisplayCompositing,
                   SIGNAL(toggled(bool)),
                   this, SIGNAL(changesAvailable()));
 
@@ -410,12 +387,15 @@ void pqGlobalRenderViewOptions::applyChanges()
   if (this->Internal->enableLOD->isChecked())
     {
     settings->setValue("LODThreshold", this->Internal->lodThreshold->value() / 10.0);
-    settings->setValue("LODResolution", 160-this->Internal->lodResolution->value() + 10);
+    settings->setValue("LODResolution",
+      1.0 - this->Internal->lodResolution->value()/ 150.0);
     }
   else
     {
     settings->setValue("LODThreshold", VTK_DOUBLE_MAX);
     }
+  settings->setValue("UseOutlineForLODRendering",
+    this->Internal->useOutlineForLOD->isChecked());
   
   settings->setValue("DepthPeeling",
     this->Internal->depthPeeling->isChecked());
@@ -440,16 +420,6 @@ void pqGlobalRenderViewOptions::applyChanges()
     settings->setValue("RemoteRenderThreshold", VTK_DOUBLE_MAX);
     }
 
-  if (this->Internal->enableTileDisplayCompositing->isChecked())
-    {
-    settings->setValue("TileDisplayCompositeThreshold", 
-      this->Internal->tileDisplayCompositeThreshold->value() / 10.0);
-    }
-  else
-    {
-    settings->setValue("TileDisplayCompositeThreshold", VTK_DOUBLE_MAX);
-    }
-
   settings->setValue("DisableOrderedCompositing",
         this->Internal->orderedCompositing->isChecked());
 
@@ -470,7 +440,7 @@ void pqGlobalRenderViewOptions::applyChanges()
     settings->setValue("CompressorType",COMPRESSOR_SQUIRT);
     // build a configuration string that can be passed directly to
     // the compressor.
-    vtkstd::ostringstream os;
+    std::ostringstream os;
     os << "vtkSquirtCompressor 0 "
        << this->Internal->squirtColorspaceSlider->value();
     settings->setValue("CompressorConfig",os.str().c_str());
@@ -481,7 +451,7 @@ void pqGlobalRenderViewOptions::applyChanges()
     settings->setValue("CompressorType",COMPRESSOR_ZLIB);
     // build a configuration string that can be passed directly to
     // the compressor.
-    vtkstd::ostringstream os;
+    std::ostringstream os;
     os << "vtkZlibImageCompressor 0 "
        << this->Internal->zlibCompressionLevel->value()
        << " "
@@ -509,19 +479,9 @@ void pqGlobalRenderViewOptions::applyChanges()
     settings->setValue("StillRenderImageReductionFactor", 1);
     }
 
-  if (this->Internal->enableClientCollect->checkState() == Qt::Checked)
-    {
-    settings->setValue("CollectGeometryThreshold",
-      this->Internal->clientCollect->value());
-    }
-  else
-    {
-    settings->setValue("CollectGeometryThreshold", VTK_DOUBLE_MAX);
-    }
-  
   // save out camera manipulators
   Manip manips[9];
-  const Manip* default3DManips = pqRenderView::getDefaultManipulatorTypes();
+  const Manip* default3DManips = pqRenderView::getDefault3DManipulatorTypes();
   for(int i=0; i<9; i++)
     {
     manips[i] = default3DManips[i];
@@ -545,7 +505,7 @@ void pqGlobalRenderViewOptions::applyChanges()
 
   // Now save out 2D camera manipulators (these are saved in a different group).
   settings->beginGroup("renderModule2D");
-  const Manip* default2DManips = pqTwoDRenderView::getDefaultManipulatorTypes();
+  const Manip* default2DManips = pqRenderView::getDefault2DManipulatorTypes();
   for(int i=0; i<9; i++)
     {
     manips[i] = default2DManips[i];
@@ -615,9 +575,20 @@ void pqGlobalRenderViewOptions::resetChanges()
     this->Internal->updateLODThresholdLabel(this->Internal->lodThreshold->value());
     }
 
-  val = settings->value("LODResolution", 50);
-  this->Internal->lodResolution->setValue(static_cast<int>(160-val.toDouble() + 10));
+  double lod_resolution = settings->value("LODResolution", 0.5).toDouble();
+  if (lod_resolution > 1.0 || lod_resolution < 0)
+    {
+    // this happens when using old-settings (when we saved a value in the range
+    // 10-160 for lod resolution.
+    lod_resolution = (lod_resolution - 10)/150.0;
+    }
+  lod_resolution = (lod_resolution > 1.0)? 1.0 : lod_resolution;
+  this->Internal->lodResolution->setValue(static_cast<int>(
+      (1.0 - lod_resolution) * 150));
   this->Internal->updateLODResolutionLabel(this->Internal->lodResolution->value());
+
+  val = settings->value("UseOutlineForLODRendering", false);
+  this->Internal->useOutlineForLOD->setChecked(val.toBool());
 
   val = settings->value("DepthPeeling", true);
   this->Internal->depthPeeling->setChecked(val.toBool());
@@ -628,7 +599,7 @@ void pqGlobalRenderViewOptions::resetChanges()
   this->Internal->numberOfPeels->setStrictRange(true);
   this->Internal->numberOfPeels->setValue(val.toInt());
 
-  val = settings->value("UseOffscreenRenderingForScreenshots", true);
+  val = settings->value("UseOffscreenRenderingForScreenshots", false);
   if (getenv("PV_NO_OFFSCREEN_SCREENSHOTS"))
     {
     val = false;
@@ -652,22 +623,6 @@ void pqGlobalRenderViewOptions::resetChanges()
     this->Internal->updateCompositeThresholdLabel(this->Internal->compositeThreshold->value());
     }
 
-  val = settings->value("TileDisplayCompositeThreshold", 3);
-  if (val.toDouble() >= VTK_LARGE_FLOAT)
-    {
-    this->Internal->enableTileDisplayCompositing->setCheckState(Qt::Unchecked);
-    this->Internal->updateTileDisplayCompositeThresholdLabel(
-      this->Internal->tileDisplayCompositeThreshold->value());
-    }
-  else
-    {
-    this->Internal->enableTileDisplayCompositing->setCheckState(Qt::Checked);
-    this->Internal->tileDisplayCompositeThreshold->setValue(static_cast<int>(val.toDouble()*10));
-    this->Internal->updateTileDisplayCompositeThresholdLabel(
-      this->Internal->tileDisplayCompositeThreshold->value());
-    }
-  
-  
   val = settings->value("DisableOrderedCompositing", false);
   this->Internal->orderedCompositing->setChecked(val.toBool());
 
@@ -711,7 +666,7 @@ void pqGlobalRenderViewOptions::resetChanges()
   val = settings->value("CompressionEnabled",1);
   this->Internal->CompressorGroup->setChecked(val.toInt());
 
-  val = settings->value("NonInteractiveRenderDelay", 2);
+  val = settings->value("NonInteractiveRenderDelay", 0);
   this->Internal->stillRenderDelay->setValue(val.toInt());
 
   val = settings->value("StillRenderImageReductionFactor", 1);
@@ -729,23 +684,10 @@ void pqGlobalRenderViewOptions::resetChanges()
       this->Internal->stillRenderSubsampleRate->value());
     }
   
-  val = settings->value("CollectGeometryThreshold", 100);
-  if (val.toDouble() >= VTK_LARGE_FLOAT)
-    {
-    this->Internal->enableClientCollect->setCheckState(Qt::Unchecked);
-    this->Internal->updateClientCollectLabel(this->Internal->clientCollect->value());
-    }
-  else
-    {
-    this->Internal->enableClientCollect->setCheckState(Qt::Checked);
-    this->Internal->clientCollect->setValue(val.toInt());
-    this->Internal->updateClientCollectLabel(this->Internal->clientCollect->value());
-    }
-
   val = settings->value("InteractorStyle/CameraManipulators");
 
   Manip manips[9];
-  const Manip* default3DManips = pqRenderView::getDefaultManipulatorTypes();
+  const Manip* default3DManips = pqRenderView::getDefault3DManipulatorTypes();
   for(int k = 0; k < 9; k++)
     {
     manips[k] = default3DManips[k];
@@ -789,7 +731,7 @@ void pqGlobalRenderViewOptions::resetChanges()
   settings->beginGroup("renderModule2D");
   val = settings->value("InteractorStyle/CameraManipulators");
 
-  const Manip* default2DManips = pqTwoDRenderView::getDefaultManipulatorTypes();
+  const Manip* default2DManips = pqRenderView::getDefault2DManipulatorTypes();
   for(int k = 0; k < 9; k++)
     {
     manips[k] = default2DManips[k];
@@ -865,13 +807,6 @@ void pqGlobalRenderViewOptions::outlineThresholdSliderChanged(int value)
 void pqGlobalRenderViewOptions::compositeThresholdSliderChanged(int value)
 {
   this->Internal->updateCompositeThresholdLabel(value);
-  emit this->changesAvailable();
-}
-
-//-----------------------------------------------------------------------------
-void pqGlobalRenderViewOptions::tileDisplayCompositeThresholdSliderChanged(int value)
-{
-  this->Internal->updateTileDisplayCompositeThresholdLabel(value);
   emit this->changesAvailable();
 }
 
@@ -992,16 +927,9 @@ void pqGlobalRenderViewOptions::stillRenderSubsampleRateSliderChanged(int value)
 }
 
 //-----------------------------------------------------------------------------
-void pqGlobalRenderViewOptions::clientCollectSliderChanged(int value)
-{
-  this->Internal->updateClientCollectLabel(static_cast<double>(value));
-  emit this->changesAvailable();
-}
-
-//-----------------------------------------------------------------------------
 void pqGlobalRenderViewOptions::resetDefaultCameraManipulators()
 {
-  const Manip* default3DManips = pqRenderView::getDefaultManipulatorTypes();
+  const Manip* default3DManips = pqRenderView::getDefault3DManipulatorTypes();
   for(int i=0; i<9; i++)
     {
     int idx = this->Internal->CameraControl3DComboItemList.indexOf(
@@ -1009,7 +937,7 @@ void pqGlobalRenderViewOptions::resetDefaultCameraManipulators()
     this->Internal->CameraControl3DComboBoxList[i]->setCurrentIndex(idx);
     }
 
-  const Manip* default2DManips = pqTwoDRenderView::getDefaultManipulatorTypes();
+  const Manip* default2DManips = pqRenderView::getDefault2DManipulatorTypes();
   for(int i=0; i<9; i++)
     {
     int idx = this->Internal->CameraControl2DComboItemList.indexOf(

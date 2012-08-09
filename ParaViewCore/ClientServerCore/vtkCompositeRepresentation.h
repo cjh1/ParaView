@@ -43,8 +43,6 @@ public:
   // Description:
   // Methods overridden to propagate to the active representation.
   virtual void SetVisibility(bool val);
-  virtual int ProcessViewRequest(vtkInformationRequestKey* request_type,
-    vtkInformation* inInfo, vtkInformation* outInfo);
 
   // Description:
   // Add/Remove representations. \c key is a unique string used to identify
@@ -72,18 +70,24 @@ public:
   virtual void AddInputConnection(int port, vtkAlgorithmOutput* input);
   virtual void AddInputConnection(vtkAlgorithmOutput* input);
   virtual void RemoveInputConnection(int port, vtkAlgorithmOutput* input);
+  virtual void RemoveInputConnection(int port, int idx);
 
   // Description:
   // Propagate the modification to all internal representations.
   virtual void MarkModified();
 
   // Description:
-  // Overridden to forward to active representation.
-  virtual vtkSelection* ConvertSelection(vtkView* view, vtkSelection* selection);
-
-  // Description:
   // Returns the data object that is rendered from the given input port.
   virtual vtkDataObject* GetRenderedDataObject(int port);
+
+  // Description:
+  // Bring this algorithm's outputs up-to-date.
+  virtual void Update() { this->Superclass::Update(); }
+  virtual void Update(int port);
+
+  // Description:
+  // Returns the list of available representation types as a string array.
+  vtkStringArray* GetRepresentationTypes();
 
   // Description:
   // Passed on to internal representations as well.
@@ -92,14 +96,6 @@ public:
   virtual void SetCacheKey(double val);
   virtual void SetForceUseCache(bool val);
   virtual void SetForcedCacheKey(double val);
-
-  // Description:
-  // Bring this algorithm's outputs up-to-date.
-  virtual void Update();
-
-  // Description:
-  // Returns the list of available representation types as a string array.
-  vtkStringArray* GetRepresentationTypes();
 
 //BTX
 protected:

@@ -27,6 +27,7 @@ class vtkNetworkAccessManager;
 class vtkPVOptions;
 class vtkSession;
 class vtkSessionIterator;
+class vtkProcessModuleInternals;
 
 class VTK_EXPORT vtkProcessModule : public vtkObject
 {
@@ -65,6 +66,14 @@ public:
     };
 
   static ProcessTypes GetProcessType();
+
+  // Description:
+  // This method has been added to support migration from one type to another
+  // but this method call if NOT RECOMMENDED.
+  // -> We use it to handle the Animation saving at disconnection time on the
+  //    server side. We create a new session and migrate the sever process to
+  //    a batch process.
+  void UpdateProcessType(ProcessTypes newType, bool dontKnowWhatImDoing = true);
 
   //********** PROCESS INITIALIZATION/CLEANUP API *****************************
 
@@ -128,6 +137,13 @@ public:
   // present, otherwise the first session. Don't use this for new API. This is
   // provided for some old api.
   vtkSession* GetSession();
+
+  // Description:
+  // Return true, if multiple sessions can be used simultanuously.
+  // We set the default to be FALSE.
+  vtkGetMacro(MultipleSessionsSupport, bool);
+  vtkSetMacro(MultipleSessionsSupport, bool);
+  vtkBooleanMacro(MultipleSessionsSupport, bool);
 
   //********** ACCESSORS FOR VARIOUS HELPERS *****************************
 
@@ -204,10 +220,9 @@ protected:
   // Used to keep track of maximum session used. Only used to ensure that no
   // session id is ever repeated.
   vtkIdType MaxSessionId;
-public:
-  class vtkInternals;
+
 protected:
-  vtkInternals* Internals;
+  vtkProcessModuleInternals* Internals;
 
   // vtkSessionIterator needs access to vtkInternals to be able to iterate over
   // the sessions efficiently.
@@ -227,6 +242,8 @@ private:
   static vtkSmartPointer<vtkMultiProcessController> GlobalController;
 
   bool SymmetricMPIMode;
+
+  bool MultipleSessionsSupport;
 //ETX
 };
 

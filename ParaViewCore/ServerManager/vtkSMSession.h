@@ -22,17 +22,17 @@
 #include "vtkPVSessionBase.h"
 #include "vtkSmartPointer.h" // needed for vtkSmartPointer.
 
-class vtkSMPluginManager;
-class vtkSMUndoStackBuilder;
-class vtkSMStateLocator;
 class vtkProcessModuleAutoMPI;
-class vtkSMProxyLocator;
 class vtkSMCollaborationManager;
+class vtkSMProxyLocator;
+class vtkSMSessionProxyManager;
+class vtkSMStateLocator;
 
 class VTK_EXPORT vtkSMSession : public vtkPVSessionBase
 {
 public:
   static vtkSMSession* New();
+  static vtkSMSession* New(vtkPVSessionBase* otherSession);
   vtkTypeMacro(vtkSMSession, vtkPVSessionBase);
   void PrintSelf(ostream& os, vtkIndent indent);
 
@@ -56,8 +56,8 @@ public:
   virtual const char* GetURI() { return "builtin:"; }
 
   // Description:
-  // Returns the vtkSMPluginManager attached to this session.
-  vtkGetObjectMacro(PluginManager, vtkSMPluginManager);
+  // Returns the vtkSMSessionProxyManager associated with this session.
+  vtkGetObjectMacro(SessionProxyManager, vtkSMSessionProxyManager);
 
   // Description:
   // Returns the number of processes on the given server/s. If more than 1
@@ -93,24 +93,10 @@ public:
   //---------------------------------------------------------------------------
 
   // Description:
-  // Allow the user to bind an UndoStackBuilder with the given session
-  virtual void SetUndoStackBuilder(vtkSMUndoStackBuilder*);
-  vtkGetObjectMacro(UndoStackBuilder, vtkSMUndoStackBuilder);
-
-
-  // Description:
-  // Flag used to disable state caching needed for undo/redo. This overcome the
-  // presence of undo stack builder in the session.
-  vtkBooleanMacro(StateManagement, bool);
-  vtkSetMacro(StateManagement, bool);
-  vtkGetMacro(StateManagement, bool);
-
-
-  // Description:
   // Provide an access to the session state locator that can provide the last
   // state of a given remote object that have been pushed.
   // That locator will be filled by RemoteObject state only if
-  // StateManagement is set to true.
+  // the UndoStackBuilder in vtkSMProxyManager is non-null.
   vtkGetObjectMacro(StateLocator, vtkSMStateLocator);
 
   //---------------------------------------------------------------------------
@@ -201,7 +187,7 @@ protected:
   // Subclasses should set initialize_during_constructor to false so that
   // this->Initialize() is not called in constructor but only after the session
   // has been created/setup correctly.
-  vtkSMSession(bool initialize_during_constructor=true);
+  vtkSMSession(bool initialize_during_constructor=true, vtkPVSessionCore* preExistingSessionCore=NULL);
   ~vtkSMSession();
 
   // Used by the Auto-MPI to prevent remote rendering, otherwise we should
@@ -220,11 +206,9 @@ protected:
   // maintain the UndoRedo mecanisme.
   void UpdateStateHistory(vtkSMMessage* msg);
 
-  vtkSMUndoStackBuilder* UndoStackBuilder;
-  vtkSMPluginManager* PluginManager;
+  vtkSMSessionProxyManager* SessionProxyManager;
   vtkSMStateLocator* StateLocator;
   vtkSMProxyLocator* ProxyLocator;
-  bool StateManagement;
 
   bool IsAutoMPI;
 

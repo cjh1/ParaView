@@ -23,10 +23,10 @@
 #include "vtkPVCacheKeeperPipeline.h"
 #include "vtkSmartPointer.h"
 
-#include <vtkstd/map>
+#include <map>
 //----------------------------------------------------------------------------
 class vtkPVCacheKeeper::vtkCacheMap :
-  public vtkstd::map<double, vtkSmartPointer<vtkDataObject> >
+  public std::map<double, vtkSmartPointer<vtkDataObject> >
 {
 public:
   unsigned long GetActualMemorySize() 
@@ -138,7 +138,7 @@ int vtkPVCacheKeeper::RequestDataObject(
       if (!output || !output->IsA(input->GetClassName())) 
         {
         vtkDataObject* newOutput = input->NewInstance();
-        newOutput->SetPipelineInformation(outputVector->GetInformationObject(0));
+        outputVector->GetInformationObject(0)->Set(vtkDataObject::DATA_OBJECT(), newOutput);
         newOutput->Delete();
         this->GetOutputPortInformation(i)->Set(
           vtkDataObject::DATA_EXTENT_TYPE(), newOutput->GetExtentType());

@@ -31,26 +31,26 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 =========================================================================*/
 #include "pqUndoStack.h"
 
-#include "vtkEventQtSlotConnect.h"
-#include "vtkProcessModule.h"
-#include "vtkSmartPointer.h"
-#include "vtkSMProxyManager.h"
-#include "vtkSMUndoStackBuilder.h"
-#include "vtkSMUndoStack.h"
-
-#include "vtkUndoSet.h"
-#include "vtkSMUndoElement.h"
-#include "vtkSMRemoteObjectUpdateUndoElement.h"
-
-
-#include <QtDebug>
-#include <QPointer>
-
 #include "pqApplicationCore.h"
 #include "pqHelperProxyRegisterUndoElement.h"
 #include "pqProxyModifiedStateUndoElement.h"
 #include "pqServer.h"
+#include "vtkEventQtSlotConnect.h"
+#include "vtkProcessModule.h"
+#include "vtkSMProxyManager.h"
+#include "vtkSMRemoteObjectUpdateUndoElement.h"
 #include "vtkSMSession.h"
+#include "vtkSMSessionProxyManager.h"
+#include "vtkSMUndoElement.h"
+#include "vtkSMUndoStack.h"
+#include "vtkSMUndoStackBuilder.h"
+#include "vtkSessionIterator.h"
+#include "vtkSmartPointer.h"
+#include "vtkUndoSet.h"
+
+#include <QtDebug>
+#include <QPointer>
+
 
 //-----------------------------------------------------------------------------
 class pqUndoStack::pqImplementation
@@ -203,14 +203,7 @@ void pqUndoStack::undo()
 {
   this->beginNonUndoableChanges();
   this->Implementation->UndoStack->Undo();
-
-  // Update of proxies have to happen in order.
-  vtkSMProxyManager::GetProxyManager()->UpdateRegisteredProxies("sources", 1);
-  vtkSMProxyManager::GetProxyManager()->UpdateRegisteredProxies("lookup_tables", 1);
-  vtkSMProxyManager::GetProxyManager()->UpdateRegisteredProxies("representations", 1);
-  vtkSMProxyManager::GetProxyManager()->UpdateRegisteredProxies("scalar_bars", 1);
-  vtkSMProxyManager::GetProxyManager()->UpdateRegisteredProxies(1);
-
+  this->updateAllModifiedProxies();
   this->endNonUndoableChanges();
 
   pqApplicationCore::instance()->render();
@@ -223,26 +216,46 @@ void pqUndoStack::redo()
 {
   this->beginNonUndoableChanges();
   this->Implementation->UndoStack->Redo();
-
-  // Update of proxies have to happen in order.
-  vtkSMProxyManager::GetProxyManager()->UpdateRegisteredProxies("sources", 1);
-  vtkSMProxyManager::GetProxyManager()->UpdateRegisteredProxies("lookup_tables", 1);
-  vtkSMProxyManager::GetProxyManager()->UpdateRegisteredProxies("representations", 1);
-  vtkSMProxyManager::GetProxyManager()->UpdateRegisteredProxies("scalar_bars", 1);
-  vtkSMProxyManager::GetProxyManager()->UpdateRegisteredProxies(1);
-
+  this->updateAllModifiedProxies();
   this->endNonUndoableChanges();
 
   pqApplicationCore::instance()->render();
 
   emit this->redone();
 }
+//-----------------------------------------------------------------------------
+void pqUndoStack::updateAllModifiedProxies()
+{
+  vtkProcessModule* pm = vtkProcessModule::GetProcessModule();
+  vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
+  vtkSessionIterator* iter = pm->NewSessionIterator();
+  iter->InitTraversal();
+
+  while(!iter->IsDoneWithTraversal())
+    {
+    vtkSMSession* session = vtkSMSession::SafeDownCast(iter->GetCurrentSession());
+    if(session)
+      {
+      vtkSMSessionProxyManager* spxm = pxm->GetSessionProxyManager(session);
+      // Update of proxies have to happen in order.
+      spxm->UpdateRegisteredProxies("sources", 1);
+      spxm->UpdateRegisteredProxies("lookup_tables", 1);
+      spxm->UpdateRegisteredProxies("representations", 1);
+      spxm->UpdateRegisteredProxies("scalar_bars", 1);
+      spxm->UpdateRegisteredProxies(1);
+      }
+    iter->GoToNextItem();
+    }
+  iter->Delete();
+}
+
 
 //-----------------------------------------------------------------------------
 void pqUndoStack::clear()
 {
   this->Implementation->UndoStack->Clear();
   this->Implementation->UndoStackBuilder->Clear();
+  this->Implementation->IgnoreAllChangesStack.clear();
 }
   
 //-----------------------------------------------------------------------------
@@ -269,22 +282,6 @@ void pqUndoStack::endNonUndoableChanges()
 bool pqUndoStack::ignoreAllChanges() const
 {
   return this->Implementation->UndoStackBuilder->GetIgnoreAllChanges();
-}
-
-//-----------------------------------------------------------------------------
-void pqUndoStack::setActiveServer(pqServer* server)
-{
-  // Clear stack
-  this->Implementation->IgnoreAllChangesStack.clear();
-
-  if (server && !server->session()->IsMultiClients())
-    {
-    this->endNonUndoableChanges();
-    }
-  else
-    {
-    this->beginNonUndoableChanges();
-    }
 }
 
 //-----------------------------------------------------------------------------

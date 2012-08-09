@@ -40,8 +40,8 @@ pqPlotMatrixView::pqPlotMatrixView(const QString &group,
                                    const QString &name,
                                    vtkSMContextViewProxy *viewModule,
                                    pqServer *server,
-                                   QObject *parent)
-  : pqContextView(viewType(), group, name, viewModule, server, parent)
+                                   QObject *parentObj)
+  : pqContextView(viewType(), group, name, viewModule, server, parentObj)
 {
 }
 
@@ -61,8 +61,8 @@ void pqPlotMatrixView::selectionChanged()
   if(vtkScatterPlotMatrix *chartMatrix = vtkScatterPlotMatrix::SafeDownCast(
     this->getContextViewProxy()->GetContextItem()))
     {
-    sel = chartMatrix->GetActiveAnnotationLink() ?
-      chartMatrix->GetActiveAnnotationLink()->GetCurrentSelection() : NULL;
+    sel = chartMatrix->GetAnnotationLink() ?
+      chartMatrix->GetAnnotationLink()->GetCurrentSelection() : NULL;
     }
 
   if(!sel)

@@ -37,11 +37,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QApplication>
 #include <QDebug>
 #include <QFile>
+#include <QHelpEngine>
 #include <QMainWindow>
 #include <QMap>
 #include <QPointer>
 #include <QSize>
 #include <QtDebug>
+#include <QTemporaryFile>
 
 // ParaView includes.
 #include "pq3DWidgetFactory.h"
@@ -67,7 +69,6 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqServer.h"
 #include "pqServerManagerModel.h"
 #include "pqServerManagerObserver.h"
-#include "pqServerManagerSelectionModel.h"
 #include "pqSettings.h"
 #include "pqSMAdaptor.h"
 #include "pqStandardServerManagerModelInterface.h"
@@ -88,6 +89,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkSMPropertyIterator.h"
 #include "vtkSMProxy.h"
 #include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
+#include "vtkSMSession.h"
 #include "vtkSMReaderFactory.h"
 #include "vtkSMWriterFactory.h"
 #include "vtkSMSession.h"
@@ -127,7 +130,6 @@ pqApplicationCore::pqApplicationCore(int& argc, char** argv, pqOptions* options,
   vtkInitializationHelper::Initialize(argc, argv,
     vtkProcessModule::PROCESS_CLIENT, options);
   this->constructor();
-  this->FinalizeOnExit = true;
 }
 
 //-----------------------------------------------------------------------------
@@ -142,6 +144,7 @@ void pqApplicationCore::constructor()
   this->RecentlyUsedResourcesList = NULL;
   this->ServerConfigurations = NULL;
   this->Settings = NULL;
+  this->HelpEngine = NULL;
 
   // initialize statics in case we're a static library
   pqCoreInit();
@@ -164,10 +167,6 @@ void pqApplicationCore::constructor()
 
   // * Create various factories.
   this->WidgetFactory = new pq3DWidgetFactory(this);
-
-  // * Setup the selection model.
-  this->SelectionModel = new pqServerManagerSelectionModel(
-    this->ServerManagerModel, this);
 
   this->DisplayPolicy = new pqDisplayPolicy(this);
 
@@ -231,14 +230,19 @@ pqApplicationCore::~pqApplicationCore()
   delete this->ServerManagerObserver;
   this->ServerManagerObserver = 0;
 
-  delete this->SelectionModel;
-  this->SelectionModel = 0;
-
   delete this->RecentlyUsedResourcesList;
   this->RecentlyUsedResourcesList= 0;
 
   delete this->Settings;
   this->Settings = 0;
+
+  if (this->HelpEngine)
+    {
+    QString collectionFile = this->HelpEngine->collectionFile();
+    delete this->HelpEngine;
+    QFile::remove(collectionFile);
+    }
+  this->HelpEngine = NULL;
 
   // We don't call delete on these since we have already setup parent on these
   // correctly so they will be deleted. It's possible that the user calls delete
@@ -258,10 +262,7 @@ pqApplicationCore::~pqApplicationCore()
     pqApplicationCore::Instance = 0;
     }
 
-  if (this->FinalizeOnExit)
-    {
-    vtkInitializationHelper::Finalize();
-    }
+  vtkInitializationHelper::Finalize();
   vtkOutputWindow::SetInstance(NULL);
   delete this->OutputWindow;
   this->OutputWindow = NULL;
@@ -327,17 +328,23 @@ void pqApplicationCore::setDisplayPolicy(pqDisplayPolicy* policy)
 //-----------------------------------------------------------------------------
 vtkSMGlobalPropertiesManager* pqApplicationCore::getGlobalPropertiesManager()
 {
+  // FIXME: Global properties can not properly handle accross several ProxyManager
   if (!this->Internal->GlobalPropertiesManager)
     {
     // Setup the application's "GlobalProperties" proxy.
     // This is used to keep track of foreground color etc.
     this->Internal->GlobalPropertiesManager =
       vtkSmartPointer<vtkSMGlobalPropertiesManager>::New();
-    this->Internal->GlobalPropertiesManager->InitializeProperties("misc",
-      "GlobalProperties");
+
+    // Need to attach to a session
     vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
-    pxm->SetGlobalPropertiesManager("ParaViewProperties",
-      this->Internal->GlobalPropertiesManager);
+    vtkSMSessionProxyManager* spxm = pxm->GetActiveSessionProxyManager();
+    this->Internal->GlobalPropertiesManager->SetSession(spxm->GetSession());
+
+    this->Internal->GlobalPropertiesManager->InitializeProperties(
+        "misc", "GlobalProperties");
+    spxm->SetGlobalPropertiesManager("ParaViewProperties",
+                                     this->Internal->GlobalPropertiesManager);
 
     // load settings.
     this->loadGlobalPropertiesFromSettings();
@@ -396,7 +403,8 @@ void pqApplicationCore::loadGlobalPropertiesFromSettings()
 /// loads palette i.e. global property values given the name of the palette.
 void pqApplicationCore::loadPalette(const QString& paletteName)
 {
-  vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
+  vtkSMSessionProxyManager* pxm =
+      vtkSMProxyManager::GetProxyManager()->GetActiveSessionProxyManager();
   vtkSMProxy* prototype = pxm->GetPrototypeProxy("palettes",
     paletteName.toAscii().data());
   if (!prototype)
@@ -472,14 +480,18 @@ QObject* pqApplicationCore::manager(const QString& function)
 void pqApplicationCore::saveState(const QString& filename)
 {
   // * Save the Proxy Manager state.
-  vtkSMObject::GetProxyManager()->SaveXMLState(filename.toAscii().data());
+  vtkSMSessionProxyManager* pxm =
+      vtkSMProxyManager::GetProxyManager()->GetActiveSessionProxyManager();
+
+  pxm->SaveXMLState(filename.toAscii().data());
 }
 
 //-----------------------------------------------------------------------------
 vtkPVXMLElement* pqApplicationCore::saveState()
 {
   // * Save the Proxy Manager state.
-  vtkSMProxyManager* pxm = vtkSMObject::GetProxyManager();
+  vtkSMSessionProxyManager* pxm =
+      vtkSMProxyManager::GetProxyManager()->GetActiveSessionProxyManager();
 
   // Eventually proxy manager will save state for each connection separately.
   // For now, we only have one connection, so simply save it.
@@ -515,11 +527,32 @@ void pqApplicationCore::loadState(
   // We disable recording view deletion in Undo/Stack
   // In anycase, the stack will be cleared, why bother recording something...
   BEGIN_UNDO_EXCLUDE();
-  QList<pqView*> current_views =
-    this->ServerManagerModel->findItems<pqView*>(server);
-  foreach (pqView* view, current_views)
+  QList<pqProxy*> proxies =
+    this->ServerManagerModel->findItems<pqProxy*>(server);
+  QList<QPointer<pqProxy> > to_destroy;
+  foreach (pqProxy* proxy, proxies)
     {
-    this->ObjectBuilder->destroy(view);
+    pqView* view = qobject_cast<pqView*>(proxy);
+    if (view)
+      {
+      to_destroy.push_back(view);
+      }
+    else if (proxy->getSMGroup()=="layouts")
+      {
+      to_destroy.push_back(proxy);
+      }
+    }
+  foreach (pqProxy* cur, to_destroy)
+    {
+    pqView* view = qobject_cast<pqView*>(cur);
+    if (view)
+      {
+      this->ObjectBuilder->destroy(view);
+      }
+    else if (cur)
+      {
+      this->ObjectBuilder->destroy(cur);
+      }
     }
   END_UNDO_EXCLUDE();
 
@@ -527,7 +560,7 @@ void pqApplicationCore::loadState(
 
   // TODO: this->LoadingState cannot be relied upon.
   this->LoadingState = true;
-  vtkSMProxyManager* pxm = server->proxyManager();
+  vtkSMSessionProxyManager* pxm = server->proxyManager();
   pxm->LoadXMLState(rootElement);
   this->LoadingState = false;
 }
@@ -596,10 +629,9 @@ pqSettings* pqApplicationCore::settings()
       vtkProcessModule::GetProcessModule()->GetOptions());
     if (options && options->GetDisableRegistry())
       {
-      this->Settings = new pqSettings(
-        QApplication::organizationName(),
-        QApplication::applicationName() + QApplication::applicationVersion()
-        + ".DisabledRegistry", this);
+      QTemporaryFile tFile;
+      tFile.open();
+      this->Settings = new pqSettings(tFile.fileName() + ".ini", true, this);
       this->Settings->clear();
       }
     else
@@ -700,10 +732,8 @@ void pqApplicationCore::loadConfiguration(const QString& filename)
 
   // Load configuration files for server manager components since they don't
   // listen to Qt signals.
-  vtkSMProxyManager::GetProxyManager()->GetReaderFactory()->
-    LoadConfiguration(root);
-  vtkSMProxyManager::GetProxyManager()->GetWriterFactory()->
-    LoadConfiguration(root);
+  vtkSMProxyManager::GetProxyManager()->GetReaderFactory()->LoadConfiguration(root);
+  vtkSMProxyManager::GetProxyManager()->GetWriterFactory()->LoadConfiguration(root);
 
   emit this->loadXML(root);
 }
@@ -716,6 +746,65 @@ pqTestUtility* pqApplicationCore::testUtility()
     this->TestUtility = new pqCoreTestUtility(this);
     }
   return this->TestUtility;
+}
+
+//-----------------------------------------------------------------------------
+QHelpEngine* pqApplicationCore::helpEngine()
+{
+  if (!this->HelpEngine)
+    {
+    QTemporaryFile tFile;
+    tFile.open();
+    this->HelpEngine = new QHelpEngine(tFile.fileName() + ".qhc", this);
+    QObject::connect(this->HelpEngine, SIGNAL(warning(const QString&)),
+      this->OutputWindow,
+      SLOT(onDisplayGenericWarningText(const QString&)));
+    this->HelpEngine->setupData();
+    // register the application's qch file. An application specific qch file can
+    // be compiled into the executable in the build_paraview_client() cmake
+    // function. If this file is provided, then that gets registered as
+    // :/${application_name}/Documentation/${qch-filename}.
+    // Locate all such registered resources and register them with the help
+    // engine.
+    QDir dir(QString(":/%1/Documentation").arg(QApplication::applicationName()));
+    QStringList help_files;
+    if (dir.exists())
+      {
+      QStringList filters;
+      filters << "*.qch";
+      help_files = dir.entryList(filters, QDir::Files);
+      }
+    foreach (const QString& filename, help_files)
+      {
+      QString qch_file = QString(":/%1/Documentation/%2").arg(
+        QApplication::applicationName()).arg(filename);
+      this->registerDocumentation(qch_file);
+      }
+    this->HelpEngine->setupData();
+    }
+
+  return this->HelpEngine;
+}
+
+//-----------------------------------------------------------------------------
+void pqApplicationCore::registerDocumentation(const QString& filename)
+{
+  QHelpEngine* engine = this->helpEngine();
+
+  // QHelpEngine doesn't like files from resource space. So we create a local
+  // file and use that.
+  QTemporaryFile* localFile = QTemporaryFile::createLocalFile(filename);
+  if (localFile)
+    {
+    // localFile has autoRemove ON by default, so the file will be deleted with
+    // the application quits.
+    localFile->setParent(engine);
+    engine->registerDocumentation(localFile->fileName());
+    }
+  else
+    {
+    engine->registerDocumentation(filename);
+    }
 }
 
 //-----------------------------------------------------------------------------

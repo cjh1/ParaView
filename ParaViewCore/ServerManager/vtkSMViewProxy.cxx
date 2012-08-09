@@ -26,9 +26,12 @@
 #include "vtkSmartPointer.h"
 #include "vtkSMPropertyHelper.h"
 #include "vtkSMProxyManager.h"
-#include "vtkSMSession.h"
 #include "vtkSMRepresentationProxy.h"
+#include "vtkSMSession.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMUtilities.h"
+
+#include <assert.h>
 
 vtkStandardNewMacro(vtkSMViewProxy);
 //----------------------------------------------------------------------------
@@ -36,6 +39,7 @@ vtkSMViewProxy::vtkSMViewProxy()
 {
   this->SetLocation(vtkProcessModule::CLIENT_AND_SERVERS);
   this->DefaultRepresentationName = 0;
+  this->Enable = true;
 }
 
 //----------------------------------------------------------------------------
@@ -119,13 +123,14 @@ void vtkSMViewProxy::StillRender()
 {
   int interactive = 0;
   this->InvokeEvent(vtkCommand::StartEvent, &interactive);
-
   // We call update separately from the render. This is done so that we don't
   // get any synchronization issues with GUI responding to the data-updated
   // event by making some data information requests(for example). If those
   // happen while StillRender/InteractiveRender is being executed on the server
   // side then we get deadlocks.
   this->Update();
+
+  vtkTypeUInt32 render_location = this->PreRender(interactive==1);
 
   if (this->ObjectsCreated)
     {
@@ -134,7 +139,7 @@ void vtkSMViewProxy::StillRender()
            << VTKOBJECT(this)
            << "StillRender"
            << vtkClientServerStream::End;
-    this->ExecuteStream(stream);
+    this->ExecuteStream(stream, false, render_location);
     }
 
   this->PostRender(interactive==1);
@@ -153,6 +158,8 @@ void vtkSMViewProxy::InteractiveRender()
   // working over a slow client-server connection.
   // this->Update();
 
+  vtkTypeUInt32 render_location = this->PreRender(interactive==1);
+
   if (this->ObjectsCreated)
     {
     vtkClientServerStream stream;
@@ -160,7 +167,7 @@ void vtkSMViewProxy::InteractiveRender()
            << VTKOBJECT(this)
            << "InteractiveRender"
            << vtkClientServerStream::End;
-    this->ExecuteStream(stream);
+    this->ExecuteStream(stream, false, render_location);
     }
 
   this->PostRender(interactive==1);
@@ -222,7 +229,8 @@ vtkSMRepresentationProxy* vtkSMViewProxy::CreateDefaultRepresentation(
 {
   if (this->DefaultRepresentationName)
     {
-    vtkSMProxyManager* pxm = vtkSMObject::GetProxyManager();
+    assert("The session should be valid" && this->Session);
+    vtkSMSessionProxyManager* pxm = this->GetSessionProxyManager();
     vtkSmartPointer<vtkSMProxy> p;
     p.TakeReference(pxm->NewProxy("representations", this->DefaultRepresentationName));
     vtkSMRepresentationProxy* repr = vtkSMRepresentationProxy::SafeDownCast(p);
@@ -237,7 +245,7 @@ vtkSMRepresentationProxy* vtkSMViewProxy::CreateDefaultRepresentation(
 
 //----------------------------------------------------------------------------
 int vtkSMViewProxy::ReadXMLAttributes(
-  vtkSMProxyManager* pm, vtkPVXMLElement* element)
+  vtkSMSessionProxyManager* pm, vtkPVXMLElement* element)
 {
   if (!this->Superclass::ReadXMLAttributes(pm, element))
     {

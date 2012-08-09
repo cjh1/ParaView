@@ -31,20 +31,28 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 =========================================================================*/
 
 #include "pqPlotMatrixDisplayPanel.h"
+#include "pqChartSeriesSettingsModel.h"
 #include "pqDataRepresentation.h"
+#include "pqSignalAdaptors.h"
 #include "vtkSMProxy.h"
 
 #include "ui_pqPlotMatrixDisplayPanel.h"
 
-pqPlotMatrixDisplayPanel::pqPlotMatrixDisplayPanel(pqRepresentation *representation, QWidget *parent)
-  : pqDisplayPanel(representation, parent)
+pqPlotMatrixDisplayPanel::pqPlotMatrixDisplayPanel(pqRepresentation *representation, QWidget *pWidget)
+  : pqDisplayPanel(representation, pWidget)
 {
   Ui::pqPlotMatrixDisplayPanel ui;
   ui.setupUi(this);
 
-  this->SettingsModel = new pqPlotSettingsModel(this);
-  this->SettingsModel->setRepresentation(qobject_cast<pqDataRepresentation*>(representation));
+  this->SettingsModel = new pqChartSeriesSettingsModel(this);
+  pqDataRepresentation* dispRep = qobject_cast<pqDataRepresentation*>(representation);
+  this->SettingsModel->setRepresentation(dispRep);
   ui.Series->setModel(this->SettingsModel);
+  ui.Series->setAcceptDrops(true);
+  ui.Series->setDragEnabled(true);
+  ui.Series->setDropIndicatorShown(true);
+  ui.Series->setDragDropOverwriteMode(false);
+  ui.Series->setDragDropMode(QAbstractItemView::InternalMove);
 
   vtkSMProxy *proxy = representation->getProxy();
 
@@ -111,22 +119,53 @@ pqPlotMatrixDisplayPanel::pqPlotMatrixDisplayPanel(pqRepresentation *representat
                    SIGNAL(dataChanged(QModelIndex,QModelIndex)),
                    this,
                    SLOT(dataChanged(QModelIndex, QModelIndex)));
+  QObject::connect(this->SettingsModel, SIGNAL(redrawChart()),
+                   this, SLOT(updateAllViews()));
+  QObject::connect(ui.Series->header(), SIGNAL(checkStateChanged()),
+                   this, SLOT(headerCheckStateChanged()));
 
-  QObject::connect(ui.Series->header(),
-                   SIGNAL(checkStateChanged()),
-                   this,
-                   SLOT(headerCheckStateChanged()));
+  this->Series = ui.Series;
+
+  QObject::connect(dispRep, SIGNAL(dataUpdated()), this, SLOT(reloadSeries()));
+  this->reloadSeries();
 }
 
 pqPlotMatrixDisplayPanel::~pqPlotMatrixDisplayPanel()
 {
 }
 
-void pqPlotMatrixDisplayPanel::headerCheckStateChanged()
-{
-}
-
 void pqPlotMatrixDisplayPanel::dataChanged(QModelIndex topLeft, QModelIndex bottomRight)
 {
+  Q_UNUSED(topLeft);
+  Q_UNUSED(bottomRight);
   this->Representation->renderViewEventually();
+}
+//-----------------------------------------------------------------------------
+void pqPlotMatrixDisplayPanel::reloadSeries()
+{
+  this->updateAllViews();
+  this->SettingsModel->reload();
+}
+
+//-----------------------------------------------------------------------------
+void pqPlotMatrixDisplayPanel::headerCheckStateChanged()
+{
+  // get current check state/
+  QHeaderView* header = this->Series->header();
+  QAbstractItemModel* headerModel = header->model();
+  bool checkable = false;
+  int cs = headerModel->headerData(0, header->orientation(),
+                                   Qt::CheckStateRole).toInt(&checkable);
+  if (checkable)
+    {
+    if (cs ==  Qt::Checked)
+      {
+      cs = Qt::Unchecked;
+      }
+    else
+      {
+      cs = Qt::Checked;
+      }
+    headerModel->setHeaderData(0, header->orientation(), cs, Qt::CheckStateRole);
+    }
 }

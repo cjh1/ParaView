@@ -74,7 +74,16 @@ public:
   pqObjectBuilder(QObject* parent=0);
   virtual ~pqObjectBuilder();
   
-  /// Create a server connection give a server resource
+  /// Create a server connection give a server resource.
+  /// By default, this method does not create a new connection if one already
+  /// exists. Also it disconnects from any existing server connection before
+  /// connecting to a new one. This behavior can be changed by setting
+  /// MultipleConnectionsSupport to true. In that case
+  /// this will always try to connect the server using the details specified in
+  /// the resource irrespective if the server is already connected or any other
+  /// server connections exists. 
+  /// Calling this method while waiting for a previous server connection to be
+  /// established raises errors.
   pqServer* createServer(const pqServerResource& resource);
  
   /// Destroy a server connection 
@@ -202,6 +211,9 @@ signals:
   /// Emitted after a new server connection is created
   void finishedAddingServer(pqServer *server);
 
+  /// Emitted when another server is avilable after a server remove
+  void activeServerChanged(pqServer *server);
+
   /// Fired on successful completion of createSource().
   /// Remember that this signal is fired only when the creation of the object
   /// is requested by the GUI. It wont be triggered when the python client
@@ -220,6 +232,9 @@ signals:
   /// creates the source or when state is loaded or on undo/redo. 
   void readerCreated(pqPipelineSource*, const QString& filename);
   void readerCreated(pqPipelineSource*, const QStringList& filename);
+
+  /// fired before attempting to create a view.
+  void aboutToCreateView(pqServer* server);
 
   /// Fired on successful completion of createView().
   /// Remember that this signal is fired only when the creation of the object

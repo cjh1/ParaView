@@ -27,13 +27,13 @@
 #define __vtkAMRDualContour_h
 
 #include "vtkMultiBlockDataSetAlgorithm.h"
-#include <vtkstd/vector>
-#include <vtkstd/string>
+#include <vector>
+#include <string>
 
 class vtkDataSet;
 class vtkImageData;
 class vtkPolyData;
-class vtkHierarchicalBoxDataSet;
+class vtkNonOverlappingAMR;
 class vtkPoints;
 class vtkDoubleArray;
 class vtkCellArray;
@@ -118,9 +118,17 @@ protected:
   virtual int RequestData(vtkInformation *, vtkInformationVector **, vtkInformationVector *);
 
   // Description:
+  // This should be called before any number of calls to DoRequestData 
+  void InitializeRequest (vtkNonOverlappingAMR* input);
+
+  // Description:
+  // This should be called after any number of calls to DoRequestData
+  void FinalizeRequest ();
+
+  // Description:
   // Not a pipeline function. This is a helper function that
   // allows creating a new data set given a input and a cell array name.
-  vtkMultiBlockDataSet* DoRequestData(vtkHierarchicalBoxDataSet* input,
+  vtkMultiBlockDataSet* DoRequestData(vtkNonOverlappingAMR* input,
                                           const char* arrayNameToProcess);
 
   virtual int FillInputPortInformation(int port, vtkInformation *info);
@@ -181,7 +189,7 @@ protected:
 
   // Stuff for passing cell attributes to point attributes.
   void InitializeCopyAttributes(
-    vtkHierarchicalBoxDataSet *hbdsInput,
+    vtkNonOverlappingAMR *hbdsInput,
     vtkDataSet* mesh);
   void InterpolateAttributes(
     vtkDataSet* uGrid, vtkIdType offset0, vtkIdType offset1, double k,

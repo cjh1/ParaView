@@ -38,11 +38,13 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #define _pqPipelineObject_h
 
 #include "pqServerManagerModelItem.h"
+#include <QPointer>
+
 class pqProxyInternal;
 class pqServer;
 class vtkPVXMLElement;
 class vtkSMProxy;
-class vtkSMProxyManager;
+class vtkSMSessionProxyManager;
 
 /// This class represents any registered Server Manager proxy.
 /// It keeps essential information to locate the proxy as well as
@@ -60,9 +62,8 @@ public:
   virtual ~pqProxy();
 
   /// Get the server on which this proxy exists.
-  pqServer *getServer() const
-    { return this->Server; }
-
+  pqServer *getServer() const;
+  
   /// This is a convenience method. It re-registers the underlying proxy
   /// with the requested new name under the same group. Then it unregisters
   /// the proxy from the group with the old name. This operation is
@@ -134,6 +135,9 @@ public:
   /// possible to locate helper proxies created from Python.
   void updateHelperProxies() const;
 
+  /// Returns the proxy manager by calling this->getProxy()->GetProxyManager();
+  vtkSMSessionProxyManager* proxyManager() const;
+
 signals:
   /// Fired when the name of the proxy is changed.
   void nameChanged(pqServerManagerModelItem*);
@@ -163,16 +167,13 @@ protected:
   virtual void addInternalHelperProxy(const QString& key, vtkSMProxy*) const;
   virtual void removeInternalHelperProxy(const QString& key, vtkSMProxy*) const;
 
-  /// Returns the proxy manager by calling this->getProxy()->GetProxyManager();
-  vtkSMProxyManager* proxyManager() const;
-
 protected slots:
   // Used to monitor helper proxy registration when created on other clients
   void onProxyRegistered(const QString&, const QString&, vtkSMProxy*);
   void onProxyUnRegistered(const QString&, const QString&, vtkSMProxy*);
 
 private:
-  pqServer *Server;           ///< Stores the parent server.
+  QPointer<pqServer> Server;           ///< Stores the parent server.
   QString SMName;
   QString SMGroup;
   pqProxyInternal* Internal;

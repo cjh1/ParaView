@@ -18,16 +18,21 @@
 // and integration filter but I also want a dual grid iso surface filter
 // so I mad it a separate class.  The API needs to be improved to make
 // it more generally useful.
+// This class will take advantage of some meta information, if available
+// from a coprocessing adaptor.  If not available, it will compute the 
+// information.
 
 #ifndef __vtkAMRDualGridHelper_h
 #define __vtkAMRDualGridHelper_h
 
 #include "vtkObject.h"
-#include <vtkstd/vector>
+#include <vector>
+#include <map>
 
 class vtkDataArray;
 class vtkIntArray;
-class vtkHierarchicalBoxDataSet;
+class vtkIdTypeArray;
+class vtkNonOverlappingAMR;
 class vtkAMRDualGridHelperBlock;
 class vtkAMRDualGridHelperLevel;
 class vtkMultiProcessController;
@@ -74,7 +79,8 @@ public:
   vtkGetObjectMacro(Controller, vtkMultiProcessController);
   virtual void SetController(vtkMultiProcessController *);
 
-  int                       Initialize(vtkHierarchicalBoxDataSet* input,
+  int                       Initialize(vtkNonOverlappingAMR* input);
+  int                       SetupData(vtkNonOverlappingAMR* input,
                                        const char* arrayName);
   const double*             GetGlobalOrigin() { return this->GlobalOrigin;}
   const double*             GetRootSpacing() { return this->RootSpacing;}
@@ -130,11 +136,15 @@ private:
   // Distributed execution
   void ShareMetaData();
   void ShareBlocks();
-  void MarshalBlocks(vtkIntArray *buffer);
-  void UnmarshalBlocks(vtkIntArray *buffer);
+  void ShareBlocksWithNeighbors(vtkIntArray *neighbors);
+  void ShareBlocksWithNeighborsAsynchronous(vtkIntArray *neighbors);
+  void ShareBlocksWithNeighborsSynchronous(vtkIntArray *neighbors);
+  int MarshalBlocks(void *buffer, unsigned int sizeLimit);
+  void UnmarshalBlocks(void *buffer);
+  void UnmarshalBlocksFromOne(void *buffer, int blockProc);
 
   vtkMultiProcessController *Controller;
-  void ComputeGlobalMetaData(vtkHierarchicalBoxDataSet* input);
+  void ComputeGlobalMetaData(vtkNonOverlappingAMR* input);
   void AddBlock(int level, vtkImageData* volume);
 
   // Manage connectivity seeds between blocks.
@@ -167,22 +177,22 @@ private:
   double GlobalOrigin[3];
   
   // Each level will have a grid to help find neighbors.
-  vtkstd::vector<vtkAMRDualGridHelperLevel*> Levels;
+  std::vector<vtkAMRDualGridHelperLevel*> Levels;
 
   int EnableDegenerateCells;
 
   void ProcessRegionRemoteCopyQueueSynchronous(bool hackLevelFlag);
-  void SendDegenerateRegionsFromQueueSynchronous(int destProc);
-  void ReceiveDegenerateRegionsFromQueueSynchronous(int srcProc,
+  void SendDegenerateRegionsFromQueueSynchronous(int destProc, vtkIdType messageLength);
+  void ReceiveDegenerateRegionsFromQueueSynchronous(int srcProc, vtkIdType messageLength,
                                                     bool hackLevelFlag);
 
   // NOTE: These methods are NOT DEFINED if not compiled with MPI.
   void ProcessRegionRemoteCopyQueueMPIAsynchronous(bool hackLevelFlag);
   void SendDegenerateRegionsFromQueueMPIAsynchronous(
-                                 int recvProc,
+                                 int recvProc, vtkIdType messageLength,
                                  vtkAMRDualGridHelperCommRequestList &sendList);
   void ReceiveDegenerateRegionsFromQueueMPIAsynchronous(
-                              int sendProc,
+                              int sendProc, vtkIdType messageLength,
                               vtkAMRDualGridHelperCommRequestList &receiveList);
   void FinishDegenerateRegionsCommMPIAsynchronous(
                               bool hackLevelFlag,
@@ -191,8 +201,8 @@ private:
 
   // Degenerate regions that span processes.  We keep them in a queue
   // to communicate and process all at once.
-  vtkstd::vector<vtkAMRDualGridHelperDegenerateRegion> DegenerateRegionQueue;
-  vtkIdType DegenerateRegionMessageSize(int srcProc, int destProc);
+  std::vector<vtkAMRDualGridHelperDegenerateRegion> DegenerateRegionQueue;
+  void DegenerateRegionMessageSize(vtkIdTypeArray* srcProcs, vtkIdTypeArray* destProc);
   void* CopyDegenerateRegionBlockToMessage(
     const vtkAMRDualGridHelperDegenerateRegion &region,
     void* messagePtr);
@@ -201,7 +211,7 @@ private:
     const void* messagePtr,
     bool hackLevelFlag);
   void MarshalDegenerateRegionMessage(void *messagePtr, int destProc);
-  void UnmarshalDegenerateRegionMessage(const void *messagePtr, int srcProc,
+  void UnmarshalDegenerateRegionMessage(const void *messagePtr, int messageLength, int srcProc,
                                         bool hackLevelFlag);
 
   int SkipGhostCopy;
@@ -231,6 +241,7 @@ public:
   vtkAMRDualGridHelperBlock();
   ~vtkAMRDualGridHelperBlock();
 
+  void ResetRegionBits ();
   // We assume that all blocks have ghost levels and are the same
   // dimension.  The vtk spy reader strips the ghost cells on
   // boundary blocks (on the outer surface of the data set).
@@ -325,7 +336,7 @@ public:
   int NormalAxis;
 
   // Sparse array of points for equivalence computation.
-  vtkstd::vector<vtkAMRDualGridHelperSeed> FragmentIds;
+  std::vector<vtkAMRDualGridHelperSeed> FragmentIds;
   void AddFragmentSeed(int level, int x, int y, int z, int fragmentId);
 
   // This is the number of blocks pointing to this face.

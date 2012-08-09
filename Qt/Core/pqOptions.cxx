@@ -34,7 +34,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqOptions.h"
 
 #include <vtkObjectFactory.h>
-#include <vtkstd/string>
+#include <string>
 
 vtkStandardNewMacro(pqOptions);
 
@@ -81,6 +81,8 @@ pqOptions::pqOptions()
   this->PythonScript = 0;
   this->TestMaster = 0;
   this->TestSlave = 0;
+  this->TileImagePath = 0;
+  this->UseOldPanels = 0;
 }
 
 //-----------------------------------------------------------------------------
@@ -90,6 +92,7 @@ pqOptions::~pqOptions()
   this->SetDataDirectory(0);
   this->SetServerResourceName(0);
   this->SetPythonScript(0);
+  this->SetTileImagePath(0);
 }
 
 //-----------------------------------------------------------------------------
@@ -100,6 +103,10 @@ void pqOptions::Initialize()
   this->AddArgument("--test-directory", NULL,
     &this->TestDirectory,
     "Set the temporary directory where test-case output will be stored.");
+
+  this->AddArgument("--tile-image-prefix", NULL,
+    &this->TileImagePath,
+    "Set the temporary directory with file name prefix for tile display image dump.");
   
   this->AddArgument("--data-directory", NULL,
     &this->DataDirectory,
@@ -143,6 +150,10 @@ void pqOptions::Initialize()
   this->AddBooleanArgument("--test-slave", 0,
     &this->TestSlave,
     "(For testing) When present, tests slave configuration.");
+
+  this->AddBooleanArgument("--use-old-panels", 0,
+    &this->UseOldPanels,
+    "Use the old Properties and Display panels instead of the 'New Properties Panel'.");
 }
 
 //-----------------------------------------------------------------------------

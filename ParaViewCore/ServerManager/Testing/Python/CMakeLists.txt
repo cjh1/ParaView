@@ -69,6 +69,7 @@ SET (PY_TESTS
   PythonSMTraceTest2
   PythonAnimationTrack
   GhostCellsInMergeBlocks
+  Python2DRendering
 #  SMUndoRedo
 #  SMCompoundProxyUndoRedo
   )
@@ -95,13 +96,15 @@ SET(PY_TESTS_NO_BASELINE
   ProxyManager
   SMPropertyAdaptor
   VRMLSource
+  MultiServer
+  ValidateSources
 )
 
 if(PARAVIEW_BUILD_PLUGIN_SurfaceLIC AND PARAVIEW_BUILD_PLUGIN_SLACTools)
   list(APPEND PY_TESTS_NO_BASELINE Plugins)
 endif()
 
-include("TestNumPy.cmake")
+include("TestNumPy")
 
 IF ("1" STREQUAL ${HAS_NUMPY})
   SET(PY_TESTS_NO_BASELINE ${PY_TESTS_NO_BASELINE} PythonFilters)
@@ -131,6 +134,7 @@ ENDIF (PVServerManagerTestData AND GENERATOR_EXPRESSIONS_SUPPORTED)
 
 SET (PVBATCH_TESTS
   Simple
+  ParallelImageWriter
   ParallelSerialWriter
 )
 

@@ -39,6 +39,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkPlotPoints.h"
 #include "vtkAnnotationLink.h"
 #include "vtkSelectionDeliveryFilter.h"
+#include "vtkStringArray.h"
+#include "vtkChartNamedOptions.h"
 
 vtkStandardNewMacro(vtkPVPlotMatrixRepresentation);
 
@@ -107,6 +109,7 @@ bool vtkPVPlotMatrixRepresentation::RemoveFromView(vtkView* view)
     {
     plotMatrix->SetInput(0);
     plotMatrix->SetVisible(false);
+    this->OrderedColumns->SetNumberOfTuples(0);
     }
 
   return this->Superclass::RemoveFromView(view);
@@ -124,8 +127,23 @@ int vtkPVPlotMatrixRepresentation::RequestData(vtkInformation *request,
 
   if(vtkScatterPlotMatrix *plotMatrix = this->GetPlotMatrix())
     {
-    plotMatrix->SetInput(this->GetLocalOutput());
-    if(vtkAnnotationLink* annLink = plotMatrix->GetActiveAnnotationLink())
+    vtkTable* plotInput = this->GetLocalOutput();
+    plotMatrix->SetInput(plotInput);
+    vtkIdType numCols = plotInput->GetNumberOfColumns();
+    if(numCols != this->OrderedColumns->GetNumberOfTuples())
+      {
+      this->OrderedColumns->SetNumberOfTuples(numCols);
+      for (vtkIdType i = 0; i < numCols; ++i)
+        {
+        this->OrderedColumns->SetValue(i, plotInput->GetColumnName(i));
+        }
+      }
+    if (this->Options)
+      {
+      this->Options->UpdatePlotOptions();
+      }
+
+    if(vtkAnnotationLink* annLink = plotMatrix->GetAnnotationLink())
       {
       vtkSelection* sel = vtkSelection::SafeDownCast(
         this->SelectionDeliveryFilter->GetOutputDataObject(0));
@@ -139,6 +157,7 @@ int vtkPVPlotMatrixRepresentation::RequestData(vtkInformation *request,
 //----------------------------------------------------------------------------
 void vtkPVPlotMatrixRepresentation::SetVisibility(bool visible)
 {
+  this->Superclass::SetVisibility(visible);
   if(vtkScatterPlotMatrix *plotMatrix = this->GetPlotMatrix())
     {
     plotMatrix->SetVisible(visible);
@@ -146,22 +165,96 @@ void vtkPVPlotMatrixRepresentation::SetVisibility(bool visible)
 }
 
 //----------------------------------------------------------------------------
-void vtkPVPlotMatrixRepresentation::SetSeriesVisibility(const char *name, bool visible)
+void vtkPVPlotMatrixRepresentation::MoveInputTableColumn(int fromCol, int toCol)
 {
-  if(vtkScatterPlotMatrix *plotMatrix = this->GetPlotMatrix())
+  if(this->OrderedColumns->GetNumberOfTuples()==0 || !this->GetPlotMatrix())
     {
-    plotMatrix->SetColumnVisibility(name, visible);
+    return;
     }
+
+  if(fromCol == toCol || fromCol == (toCol-1) || fromCol < 0 || toCol < 0)
+    {
+    return;
+    }
+  int numCols = this->OrderedColumns->GetNumberOfTuples();
+  if( fromCol >= numCols || toCol > numCols)
+    {
+    return;
+    }
+
+  std::vector<vtkStdString> newOrderedCols;
+  vtkStringArray* orderedCols = this->OrderedColumns.GetPointer();
+  vtkIdType c;
+  if(toCol == numCols)
+    {
+    for(c=0; c<numCols; c++)
+      {
+      if(c!=fromCol)
+        {
+        newOrderedCols.push_back(orderedCols->GetValue(c));
+        }
+      }
+    // move the fromCol to the end
+    newOrderedCols.push_back(orderedCols->GetValue(fromCol));
+    }
+  // insert the fromCol before toCol
+  else if(fromCol < toCol)
+    {
+    // move Cols in the middle up
+    for(c=0; c<fromCol; c++)
+      {
+      newOrderedCols.push_back(orderedCols->GetValue(c));
+      }
+    for(c=fromCol+1; c<numCols; c++)
+      {
+      if(c == toCol)
+        {
+        newOrderedCols.push_back(orderedCols->GetValue(fromCol));
+        }
+      newOrderedCols.push_back(orderedCols->GetValue(c));
+      }
+    }
+  else
+    {
+    for(c=0; c<toCol; c++)
+      {
+      newOrderedCols.push_back(orderedCols->GetValue(c));
+      }
+    newOrderedCols.push_back(orderedCols->GetValue(fromCol));
+    for(c=toCol; c<numCols; c++)
+      {
+      if(c != fromCol)
+        {
+        newOrderedCols.push_back(orderedCols->GetValue(c));
+        }
+      }
+    }
+
+  // repopulate the orderedCols
+  vtkIdType visId=0;
+  vtkNew<vtkStringArray> newVisCols;
+  std::vector<vtkStdString>::iterator arrayIt;
+  for(arrayIt=newOrderedCols.begin(); arrayIt!=newOrderedCols.end(); ++arrayIt)
+    {
+    orderedCols->SetValue(visId++, *arrayIt);
+    if(this->GetPlotMatrix()->GetColumnVisibility(*arrayIt))
+      {
+      newVisCols->InsertNextValue(*arrayIt);
+      }
+    }
+  this->GetPlotMatrix()->SetVisibleColumns(newVisCols.GetPointer());
 }
 
 //----------------------------------------------------------------------------
-void vtkPVPlotMatrixRepresentation::SetSeriesLabel(const char *name, const char *label)
+const char* vtkPVPlotMatrixRepresentation::GetSeriesName(int col)
 {
-  if(vtkScatterPlotMatrix *plotMatrix = this->GetPlotMatrix())
+  if(col>=0 && col<this->OrderedColumns->GetNumberOfTuples())
     {
+    return this->OrderedColumns->GetValue(col);
     }
-}
 
+  return this->Superclass::GetSeriesName(col);
+}
 //----------------------------------------------------------------------------
 void vtkPVPlotMatrixRepresentation::SetColor(double r, double g, double b)
 {

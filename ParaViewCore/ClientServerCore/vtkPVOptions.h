@@ -23,7 +23,6 @@
 #define __vtkPVOptions_h
 
 #include "vtkCommandOptions.h"
-
 class vtkPVOptionsInternal;
 
 class VTK_EXPORT vtkPVOptions : public vtkCommandOptions
@@ -125,6 +124,10 @@ public:
   vtkGetMacro(MultiClientMode, int);
 
   // Description:
+  // Is this client allow multiple server connection in parallel
+  vtkGetMacro(MultiServerMode, int);
+
+  // Description:
   // Indicates if the application is in symmetric mpi mode.
   // This is applicable only to PVBATCH type of processes.
   // Typically, when set to true, the python script is run on satellites as
@@ -136,6 +139,21 @@ public:
   // Description:
   // Should this run print the version numbers and exit.
   vtkGetMacro(TellVersion, int);
+
+  /// Provides access to server-url if specified on the command line.
+  vtkGetStringMacro(ServerURL);
+
+  // Description:
+  // This is used when user want to open a file at startup
+  vtkSetStringMacro(ParaViewDataName);
+
+  // Description:
+  // EXPERIMENTAL: When set, AMR streaming is enabled.
+  vtkGetMacro(AMRStreaming, int);
+
+  // Description:
+  // When set, use cuda interop feature
+  vtkGetMacro(UseCudaInterop, int);
 
 protected:
 //BTX
@@ -167,7 +185,6 @@ protected:
 
   // Description:
   // Subclasses may need to access these
-  vtkSetStringMacro(ParaViewDataName);
   char* ParaViewDataName;
 
   vtkSetStringMacro(RenderServerHostName);
@@ -182,6 +199,10 @@ protected:
   vtkSetStringMacro(ServerHostName);
   char* ServerHostName;
 
+  //server URL information
+  vtkSetStringMacro(ServerURL);
+  char* ServerURL;
+
   // Port information
   int ServerPort;
   int DataServerPort;
@@ -192,6 +213,7 @@ protected:
   int ClientMode;
   int RenderServerMode;
   int MultiClientMode;
+  int MultiServerMode;
 
   int SymmetricMPIMode;
 
@@ -233,6 +255,10 @@ private:
 
   vtkSetStringMacro(StereoType);
   char* StereoType;
+
+  int AMRStreaming;
+
+  int UseCudaInterop;
 
 //ETX
 private:

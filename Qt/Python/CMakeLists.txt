@@ -38,7 +38,7 @@ QT4_WRAP_UI(QtPython_UI_BUILT_SOURCES
 
 SET_DIRECTORY_PROPERTIES(PROPERTIES INCLUDE_DIRECTORIES "${include_dirs_tmp}")
 
-VTK_ADD_LIBRARY(QtPython
+PVVTK_ADD_LIBRARY(QtPython
   pqPythonDialog.cxx
   pqPythonDialog.h
   pqPythonMacroSupervisor.cxx
@@ -60,6 +60,7 @@ TARGET_LINK_LIBRARIES(QtPython
   ${QT_LIBRARIES}
   ${PYTHON_LIBRARIES}
   vtkPVPythonInterpretor
+  vtkPVClientServerCore
 )
 
 CONFIGURE_FILE(

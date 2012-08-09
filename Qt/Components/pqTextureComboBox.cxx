@@ -40,8 +40,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkSMProxyIterator.h"
 #include "vtkSMProxyProperty.h"
 #include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 
 #include <vtksys/SystemTools.hxx>
+#include <assert.h>
 
 // Qt Includes.
 #include <QFileInfo>
@@ -49,15 +51,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <QPixmap>
 #include <QPointer>
 #include <QtDebug>
-#include <QTimer>
 
 // ParaView Includes.
 #include "pqApplicationCore.h"
 #include "pqDataRepresentation.h"
 #include "pqFileDialog.h"
 #include "pqRenderView.h"
+#include "pqServer.h"
 #include "pqServerManagerObserver.h"
 #include "pqSMAdaptor.h"
+#include "pqTimer.h"
 #include "pqTriggerOnIdleHelper.h"
 #include "pqUndoStack.h"
 
@@ -145,7 +148,7 @@ void pqTextureComboBox::proxyUnRegistered(const QString& group, const QString&,
   if (group == TEXTURESGROUP)
     {
     this->Internal->TextureIcons.remove(proxy);
-    QTimer::singleShot(0, this, SLOT(updateTextures()));
+    pqTimer::singleShot(0, this, SLOT(updateTextures()));
     }
 }
 
@@ -262,6 +265,9 @@ void pqTextureComboBox::reload()
   vtkSMProxyIterator* proxyIter = vtkSMProxyIterator::New();
   proxyIter->SetModeToOneGroup();
 
+  // Look for proxy that in the current active server/session
+  proxyIter->SetSession(pqApplicationCore::instance()->getActiveServer()->session());
+
   QMap<QString, int> countMap;
   for (proxyIter->Begin(TEXTURESGROUP); !proxyIter->IsAtEnd(); proxyIter->Next())
     {
@@ -307,10 +313,14 @@ void pqTextureComboBox::onActivated(int index)
     proxy = this->Internal->Representation->getProxy();
     textureProperty = proxy->GetProperty("Texture");
     }
-  else
+  else if (this->Internal->RenderView)
     {
     proxy = this->Internal->RenderView->getProxy();
     textureProperty = proxy->GetProperty("BackgroundTexture");
+    }
+  else
+    {
+    return;
     }
 
   if (!textureProperty)

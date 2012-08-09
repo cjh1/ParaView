@@ -31,7 +31,7 @@
 #include "vtkUndoStackInternal.h"
 
 #include <vtksys/RegularExpression.hxx>
-#include <vtkstd/map>
+#include <map>
 
 vtkStandardNewMacro(vtkSMUndoStackBuilder);
 vtkCxxSetObjectMacro(vtkSMUndoStackBuilder, UndoStack, vtkSMUndoStack);
@@ -130,7 +130,8 @@ void vtkSMUndoStackBuilder::OnStateChange( vtkSMSession *session,
                                            const vtkSMMessage *previousState,
                                            const vtkSMMessage *newState)
 {
-  if (this->IgnoreAllChanges || !this->HandleChangeEvents() || !this->UndoStack)
+  if (this->IgnoreAllChanges || !this->HandleChangeEvents() || !this->UndoStack
+      || session->IsMultiClients()) // No undo for collaboration
     {
     return;
     }
@@ -141,6 +142,18 @@ void vtkSMUndoStackBuilder::OnStateChange( vtkSMSession *session,
   undoElement->SetUndoRedoState( previousState, newState );
   this->Add(undoElement);
   undoElement->FastDelete();
+}
+
+//-----------------------------------------------------------------------------
+void vtkSMUndoStackBuilder::OnCreateObject(
+  vtkSMSession* session, vtkSMMessage* newState)
+{
+  // Valid undo stack but No collaborative session
+  if (this->UndoStack && !session->IsMultiClients())
+    {
+    this->UndoStack->InvokeEvent(
+      vtkSMUndoStack::ObjectCreationEvent, newState);
+    }
 }
 
 //-----------------------------------------------------------------------------

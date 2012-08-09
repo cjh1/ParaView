@@ -38,6 +38,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqServerManagerModel.h"
 
 #include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMSession.h"
 
 #include <QDebug>
@@ -56,14 +57,9 @@ pqUndoRedoBehavior::pqUndoRedoBehavior(QObject* parentObject)
   // setup Undo Stack.
   pqUndoStackBuilder* builder = pqUndoStackBuilder::New();
   pqUndoStack* stack = new pqUndoStack(builder, this);
-  vtkSMProxyManager::GetProxyManager()->GetSession()->SetUndoStackBuilder(builder);
+  vtkSMProxyManager::GetProxyManager()->SetUndoStackBuilder(builder);
   builder->Delete();
   core->setUndoStack(stack);
-
-  QObject::connect(
-    &pqActiveObjects::instance(), SIGNAL(serverChanged(pqServer*)),
-    stack, SLOT(setActiveServer(pqServer*))); 
-  stack->setActiveServer(pqActiveObjects::instance().activeServer());
 
   // clear undo stack when state is loaded.
   QObject::connect(core,
@@ -77,6 +73,10 @@ pqUndoRedoBehavior::pqUndoRedoBehavior(QObject* parentObject)
   QObject::connect(core->getServerManagerModel(),
     SIGNAL(finishedRemovingServer()),
     stack, SLOT(clear()));
+
+  // As the undo-stack is properly setup now, record the current ProxyManager state
+  vtkSMProxyManager* pxm = vtkSMProxyManager::GetProxyManager();
+  pxm->GetActiveSessionProxyManager()->TriggerStateUpdate();
 
   // FIXME disable undo when VCR is used
 //  QObject::connect(

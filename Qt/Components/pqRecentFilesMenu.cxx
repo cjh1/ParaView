@@ -40,16 +40,17 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqServerLauncher.h"
 #include "pqServerManagerModel.h"
 #include "pqServerResource.h"
+#include "pqTimer.h"
 #include "pqUndoStack.h"
+
 #include "vtkPVXMLParser.h"
 #include "vtkSmartPointer.h"
 
 #include <QMenu>
-#include <QTimer>
 #include <QtDebug>
 #include <QMessageBox>
 
-#include <vtkstd/algorithm>
+#include <algorithm>
 
 /////////////////////////////////////////////////////////////////////////////
 // pqRecentFilesMenu::pqImplementation
@@ -134,7 +135,7 @@ void pqRecentFilesMenu::onResourcesChanged()
       resource.schemeHostsPorts();
       
     // If this host isn't already in the list, add it ...
-    if(!vtkstd::count_if(servers.begin(), servers.end(), pqImplementation::SameSchemeAndHost(server)))
+    if(!std::count_if(servers.begin(), servers.end(), pqImplementation::SameSchemeAndHost(server)))
       {
       servers.push_back(server);
       }
@@ -207,7 +208,7 @@ void pqRecentFilesMenu::onOpenResource(QAction* action)
   // next time the UI is idle.
   this->Implementation->RecentResource =
     pqServerResource(action->data().toString());
-  QTimer::singleShot(0, this, SLOT(onOpenResource()));
+  pqTimer::singleShot(0, this, SLOT(onOpenResource()));
 }
 
 //-----------------------------------------------------------------------------

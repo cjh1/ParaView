@@ -14,7 +14,7 @@
 =========================================================================*/
 #include "vtkPVAMRDualContour.h"
 
-#include "vtkHierarchicalBoxDataSet.h"
+#include "vtkNonOverlappingAMR.h"
 #include "vtkInformation.h"
 #include "vtkInformationVector.h"
 #include "vtkMultiBlockDataSet.h"
@@ -22,8 +22,8 @@
 
 #include "vtkCompositeDataIterator.h"
 
-#include <vtkstd/string>  // STL required.
-#include <vtkstd/vector>  // STL required.
+#include <string>  // STL required.
+#include <vector>  // STL required.
 
 vtkStandardNewMacro(vtkPVAMRDualContour);
 
@@ -33,7 +33,7 @@ const double PV_AMR_SURFACE_VALUE_UNSIGNED_CHAR=255;
 class vtkPVAMRDualContourInternal
 {
 public:
-  vtkstd::vector<vtkstd::string> CellArrays;
+  std::vector<std::string> CellArrays;
 };
 
 //-----------------------------------------------------------------------------
@@ -65,7 +65,7 @@ int vtkPVAMRDualContour::RequestData(vtkInformation* vtkNotUsed(request),
                                   vtkInformationVector* outputVector)
 {
   vtkInformation* inInfo = inputVector[0]->GetInformationObject(0);
-  vtkHierarchicalBoxDataSet* hbdsInput=vtkHierarchicalBoxDataSet::SafeDownCast(
+  vtkNonOverlappingAMR* hbdsInput=vtkNonOverlappingAMR::SafeDownCast(
     inInfo->Get(vtkDataObject::DATA_OBJECT()));
 
   vtkInformation *outInfo;
@@ -79,6 +79,7 @@ int vtkPVAMRDualContour::RequestData(vtkInformation* vtkNotUsed(request),
   this->IsoValue = (this->VolumeFractionSurfaceValue *
                     PV_AMR_SURFACE_VALUE_UNSIGNED_CHAR);
 
+  this->InitializeRequest (hbdsInput);
   size_t noOfArrays = this->Implementation->CellArrays.size();
   for(size_t i = 0; i < noOfArrays; i++)
     {
@@ -92,6 +93,7 @@ int vtkPVAMRDualContour::RequestData(vtkInformation* vtkNotUsed(request),
       out->Delete();
       }
     }
+  this->FinalizeRequest ();
 
   return 1;
 }
@@ -99,7 +101,7 @@ int vtkPVAMRDualContour::RequestData(vtkInformation* vtkNotUsed(request),
 //-----------------------------------------------------------------------------
 void vtkPVAMRDualContour::AddInputCellArrayToProcess(const char* name)
 {
-  this->Implementation->CellArrays.push_back(vtkstd::string(name));
+  this->Implementation->CellArrays.push_back(std::string(name));
   this->Modified();
 }
 

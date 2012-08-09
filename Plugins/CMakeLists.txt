@@ -29,9 +29,22 @@ ENDMACRO(paraview_build_optional_plugin)
 paraview_build_optional_plugin(EyeDomeLighting "EyeDomeLighting" EyeDomeLighting OFF)
 paraview_build_optional_plugin(Manta "Manta ray traced rendering" Manta OFF)
 paraview_build_optional_plugin(Moments "Filters for Flux and Circulation Fields" Moments ON)
+paraview_build_optional_plugin(NonOrthogonalSource "Non Orthogonal Source code sample" NonOrthogonalSource ON)
 paraview_build_optional_plugin(Prism "Prism" PrismPlugins ON)
 paraview_build_optional_plugin(PacMan "Testing plugin" TestPlugin  ON)
-paraview_build_optional_plugin(PointSprite "Point Sprites" PointSprite ON)
+if(PARAVIEW_USE_PISTON)
+  paraview_build_optional_plugin(Piston "LANL Piston GPU accelerated filters" Piston  ON)
+else()
+  set(PARAVIEW_BUILD_PLUGIN_Piston OFF CACHE BOOL "Can't use this plugin without piston" FORCE)
+endif()
+
+# The PointSprite plugin does not build in static mode therefore we make sure it is disable
+if(BUILD_SHARED_LIBS)
+  paraview_build_optional_plugin(PointSprite "Point Sprites" PointSprite ON)
+else(BUILD_SHARED_LIBS)
+  set(PARAVIEW_BUILD_PLUGIN_PointSprite OFF CACHE BOOL "Must be disable in static build" FORCE)
+endif(BUILD_SHARED_LIBS)
+
 IF(PARAVIEW_ENABLE_PYTHON)
   paraview_build_optional_plugin(pvblot "pvblot" pvblot ON)
 ENDIF(PARAVIEW_ENABLE_PYTHON)
@@ -43,7 +56,10 @@ paraview_build_optional_plugin(VaporPlugin "Plugin to read NCAR VDF files" Vapor
 paraview_build_optional_plugin(H5PartReader "Reader for *.h5part files" H5PartReader ON)
 paraview_build_optional_plugin(AdiosReader "Reader for *.bp files based on Adios" AdiosReader OFF)
 IF(PARAVIEW_BUILD_QT_GUI)
-  paraview_build_optional_plugin(CoProcessingScriptGenerator "Plugin for creating python coprocessing scripts" CoProcessingScriptGenerator OFF)
+  IF(PARAVIEW_ENABLE_PYTHON)
+    paraview_build_optional_plugin(CoProcessingScriptGenerator
+      "Plugin for creating python coprocessing scripts" CoProcessingScriptGenerator ON)
+  ENDIF(PARAVIEW_ENABLE_PYTHON)
   paraview_build_optional_plugin(VRPlugin "Virtual Reality Devices and Interactor styles" VR OFF)
 
   # We do not include VisTrails source in our repo for Licensing reasons. If the directory is manually copied into Plugins, build it.
@@ -53,7 +69,11 @@ IF(PARAVIEW_BUILD_QT_GUI)
 ENDIF(PARAVIEW_BUILD_QT_GUI)
 paraview_build_optional_plugin(AnalyzeNIfTIReaderWriter "Reader/Writer for Analyze and NIfTI." AnalyzeNIfTIReaderWriter ON)
 paraview_build_optional_plugin(ForceTime "Override time requests" ForceTime OFF)
-paraview_build_optional_plugin(SQToolkit "SciberQuest SciViz Toolkit" SQToolkit OFF)
+paraview_build_optional_plugin(
+      SciberQuestToolKit
+      "SciberQuestToolKit - Domain specific visualization tools for magnetospheric sciences."
+      SciberQuestToolKit
+      ON)
 if(PARAVIEW_USE_MPI AND NOT WIN32)
   paraview_build_optional_plugin(Nektar "Nektar Reader Plugin" Nektar OFF)
 endif()

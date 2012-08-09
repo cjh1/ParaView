@@ -58,16 +58,16 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkCellType.h"
 
 // Qt Includes.
-#include <QTimer>
 #include <QItemSelectionModel>
 #include <QtDebug>
 #include <QPointer>
 
 // ParaView Includes.
-#include "pqSMAdaptor.h"
 #include "pqDataRepresentation.h"
 #include "pqOutputPort.h"
 #include "pqPipelineSource.h"
+#include "pqSMAdaptor.h"
+#include "pqTimer.h"
 
 
 static uint qHash(pqSpreadSheetViewModel::vtkIndex index)
@@ -203,8 +203,8 @@ public:
   }
 
   QItemSelectionModel SelectionModel;
-  QTimer Timer;
-  QTimer SelectionTimer;
+  pqTimer Timer;
+  pqTimer SelectionTimer;
   int DecimalPrecision;
   vtkIdType LastRowCount;
   vtkIdType LastColumnCount;
@@ -214,6 +214,7 @@ public:
   QPointer<pqDataRepresentation> ActiveRepresentation;
   vtkWeakPointer<vtkSMProxy> ActiveRepresentationProxy;
   vtkSpreadSheetView *VTKView;
+  QList<bool> ColumnVisibility;
   bool Dirty;
 };
 
@@ -399,7 +400,7 @@ void pqSpreadSheetViewModel::onDataFetched(
 QVariant pqSpreadSheetViewModel::data(
   const QModelIndex& idx, int role/*=Qt::DisplayRole*/) const
 {
-  if (role != Qt::DisplayRole)
+  if (role != Qt::DisplayRole && role != Qt::EditRole)
     {
     return QVariant();
     }
@@ -764,4 +765,36 @@ void pqSpreadSheetViewModel::setDecimalPrecision(int dPrecision)
 int pqSpreadSheetViewModel::getDecimalPrecision()
 {
   return this->Internal->DecimalPrecision;
+}
+//-----------------------------------------------------------------------------
+Qt::ItemFlags pqSpreadSheetViewModel::flags ( const QModelIndex & idx ) const
+{
+  return QAbstractTableModel::flags(idx) | Qt::ItemIsEditable;
+}
+//-----------------------------------------------------------------------------
+bool pqSpreadSheetViewModel::setData ( const QModelIndex&, const QVariant&, int)
+{
+  // Do nothing, we are not supposed to change our data...
+  return true;
+}
+
+//-----------------------------------------------------------------------------
+void pqSpreadSheetViewModel::setVisible ( int section, bool visibility )
+{
+  while(this->Internal->ColumnVisibility.size() <= section)
+    {
+    this->Internal->ColumnVisibility.append(true);
+    }
+  this->Internal->ColumnVisibility[section] = visibility;
+  emit this->headerDataChanged(Qt::Horizontal, section-1, section);
+}
+
+//-----------------------------------------------------------------------------
+bool pqSpreadSheetViewModel::isVisible ( int section )
+{
+  if(this->Internal->ColumnVisibility.size() > section)
+    {
+    return this->Internal->ColumnVisibility.at(section);
+    }
+  return true;
 }

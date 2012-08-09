@@ -28,17 +28,17 @@
 #include "vtkRectilinearGrid.h"
 #include "vtkStructuredGrid.h"
 #include "vtkStreamingDemandDrivenPipeline.h"
-#include "vtkToolkits.h"
+#include "vtkPVConfig.h"
 #include "vtkTransmitPolyDataPiece.h"
 #include "vtkTransmitUnstructuredGridPiece.h"
 #include "vtkUnstructuredGrid.h"
 
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
 # include "vtkMPICommunicator.h"
 #endif
 
-#include <vtkstd/string>
-#include <vtkstd/vector>
+#include <string>
+#include <vector>
 
 #include <ctype.h>
 
@@ -56,13 +56,13 @@ vtkMultiProcessController* vtkPVEnSightMasterServerReader2::GetController()
 class vtkPVEnSightMasterServerReader2Internal
 {
 public:
-  vtkstd::vector<vtkstd::string> PieceFileNames;
+  std::vector<std::string> PieceFileNames;
   int EnSightVersion;
   int NumberOfTimeSets;
   int NumberOfOutputs;
-  vtkstd::vector<int> CumulativeTimeSetSizes;
-  vtkstd::vector<float> TimeSetValues;
-  vtkstd::vector<vtkPGenericEnSightReader*> RealReaders;
+  std::vector<int> CumulativeTimeSetSizes;
+  std::vector<float> TimeSetValues;
+  std::vector<vtkPGenericEnSightReader*> RealReaders;
 };
 
 //----------------------------------------------------------------------------
@@ -99,7 +99,7 @@ void vtkPVEnSightMasterServerReader2::PrintSelf(ostream& os, vtkIndent indent)
 }
 
 //----------------------------------------------------------------------------
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
 template<class T>
 int vtkPVEnSightMasterServerReader2SyncValues(T* data, int numValues,
     int numPieces, vtkMultiProcessController* controller)
@@ -410,15 +410,15 @@ int vtkPVEnSightMasterServerReader2::RequestData(vtkInformation * vtkNotUsed(req
     steps = outInfo->Get(vtkStreamingDemandDrivenPipeline::TIME_STEPS());
     }
 
-  if(outInfo->Has(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS())
+  if(outInfo->Has(vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP())
       && steps != 0 && tsLength > 0)
     {
-    double *requestedTimeSteps = outInfo->Get(
-        vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS());
+    double requestedTimeStep = outInfo->Get(
+        vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP());
     // find the first time value larger than requested time value
     // this logic could be improved
     int cnt = 0;
-    while(cnt < tsLength - 1 && steps[cnt] < requestedTimeSteps[0])
+    while(cnt < tsLength - 1 && steps[cnt] < requestedTimeStep)
       {
       cnt++;
       }
@@ -462,7 +462,7 @@ static int vtkPVEnSightMasterServerReader2StartsWith(const char* str1,
 // need this very carefully written version of getline.  Returns true
 // if any data were read before the end-of-file was reached.
 static int vtkPVEnSightMasterServerReader2GetLineFromStream(istream& is,
-    vtkstd::string& line)
+    std::string& line)
 {
   const int bufferSize = 1024;
   char buffer[bufferSize];
@@ -516,7 +516,7 @@ int vtkPVEnSightMasterServerReader2::ParseMasterServerFile()
   // Clear old list of pieces.
   this->Internal->PieceFileNames.clear();
   // Construct the file name to open.
-  vtkstd::string sfilename;
+  std::string sfilename;
   if(!this->CaseFileName || this->CaseFileName[0] == 0)
     {
     vtkErrorMacro("A case file name must be specified.");
@@ -549,7 +549,7 @@ int vtkPVEnSightMasterServerReader2::ParseMasterServerFile()
   int readingServers = 0;
   int numServers = 0;
   // Read all data lines in the file.
-  vtkstd::string line;
+  std::string line;
   while(vtkPVEnSightMasterServerReader2GetLineFromStream(fin, line))
     {
     // This section determines the type of file: case of SOS.
@@ -582,7 +582,7 @@ int vtkPVEnSightMasterServerReader2::ParseMasterServerFile()
         // Handle the case file line an sos file with one server.
         numServers = 1;
         this->Internal->PieceFileNames.push_back(this->CaseFileName);
-        // We could exit the state machine here 
+        // We could exit the state machine here
         // because we have nothing else to do from this state.
         // We assume the line "SERVERS" will not appear in any case file.
         }

@@ -1,3 +1,6 @@
+project(CoProcessingScriptGeneratorPlugin)
+
+
 #--------------------------------------------------
 # Find and Use ParaView
 #--------------------------------------------------
@@ -12,7 +15,7 @@ ELSE (ParaView_SOURCE_DIR)
   FIND_PACKAGE(ParaView REQUIRED)
   INCLUDE(${PARAVIEW_USE_FILE})
 ENDIF (ParaView_SOURCE_DIR)
-
+ 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR}/Resources)
 
 # Plugins for ParaView that add support to export state for CoProcessing etc.
@@ -29,7 +32,8 @@ SET (CP_SOURCES
 )
 
 SET (UI_RESOURCES
-  Resources/ExportStateWizard.ui)
+  Resources/ExportStateWizard.ui
+  Resources/ImageOutputInfo.ui)
 
 INCLUDE(${QT_USE_FILE})
 
@@ -88,3 +92,19 @@ ADD_PARAVIEW_PLUGIN(
     cp_export_py.cxx
 )
 
+IF (BUILD_TESTING)
+  include(ParaViewTestingMacros)
+  set(CoProcessingGUI_USE_NEW_PANELS TRUE)
+  # this test is redundant with the CoProcessingFullWorkflow test
+  # in the coprocessing library but that may not be built so we
+  # add it here as well. this test though is a subset of that test.
+  if(Q_WS_MAC)
+    add_client_tests("pv"
+      TEST_SCRIPTS ${CMAKE_CURRENT_SOURCE_DIR}/Testing/CoProcessingGUI-Mac.xml )
+    SET_TESTS_PROPERTIES(pv.CoProcessingGUI-Mac PROPERTIES RUN_SERIAL ON)
+  else(Q_WS_MAC)
+    add_client_tests("pv"
+      TEST_SCRIPTS ${CMAKE_CURRENT_SOURCE_DIR}/Testing/CoProcessingGUI.xml )
+    SET_TESTS_PROPERTIES(pv.CoProcessingGUI PROPERTIES RUN_SERIAL ON)
+  endif(Q_WS_MAC)
+ENDIF (BUILD_TESTING)

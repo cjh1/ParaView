@@ -24,6 +24,7 @@ PURPOSE.  See the above copyright notice for more information.
 #include "vtkBoundingBox.h"
 #include "vtkUnsignedCharArray.h"
 
+#include <map>
 #include <sstream>
 #include <assert.h>
 
@@ -62,7 +63,7 @@ vtkSpyPlotBlock::vtkSpyPlotBlock() :
 //-----------------------------------------------------------------------------
 vtkSpyPlotBlock::~vtkSpyPlotBlock()
 {
-  if (!this->IsAllocated()) 
+  if (!this->IsAllocated())
     {
     return;
     }
@@ -70,8 +71,8 @@ vtkSpyPlotBlock::~vtkSpyPlotBlock()
   this->XYZArrays[1]->Delete();
   this->XYZArrays[2]->Delete();
 }
-  
-  
+
+
 //-----------------------------------------------------------------------------
 void vtkSpyPlotBlock::SetDebug(unsigned char mode)
 {
@@ -79,7 +80,7 @@ void vtkSpyPlotBlock::SetDebug(unsigned char mode)
     {
     this->Status.Debug = 1;
     }
-  else 
+  else
     {
     this->Status.Debug = 0;
     }
@@ -136,8 +137,8 @@ void vtkSpyPlotBlock::GetRealBounds(double rbounds[6]) const
   // If the block has been fixed then the XYZArrays true size is dim - 2
   // (-2 represents the original endpoints being removed) - fixOffset is
   // used to correct for this
-  int fixOffset = 0; 
-  if (!this->IsFixed()) 
+  int fixOffset = 0;
+  if (!this->IsFixed())
     {
     fixOffset = 1;
     }
@@ -168,7 +169,7 @@ void vtkSpyPlotBlock::GetSpacing(double spacing[3]) const
     }
 }
 
-     
+
 //-----------------------------------------------------------------------------
 void vtkSpyPlotBlock::GetVectors(vtkDataArray *coordinates[3]) const
 {
@@ -180,11 +181,11 @@ void vtkSpyPlotBlock::GetVectors(vtkDataArray *coordinates[3]) const
 
 //-----------------------------------------------------------------------------
 int vtkSpyPlotBlock::GetAMRInformation(const vtkBoundingBox  &globalBounds,
-                                       int *level, 
+                                       int *level,
                                        double spacing[3],
-                                       double origin[3], 
+                                       double origin[3],
                                        int extents[6],
-                                       int realExtents[6], 
+                                       int realExtents[6],
                                        int realDims[3]) const
 {
   assert("Check Block is AMR" && this->IsAMR());
@@ -221,7 +222,7 @@ int vtkSpyPlotBlock::GetAMRInformation(const vtkBoundingBox  &globalBounds,
         --extents[j+1];
         }
       }
-    else 
+    else
       {
       realExtents[j] = 0;
       origin[i] = minV;
@@ -248,7 +249,7 @@ int vtkSpyPlotBlock::GetAMRInformation(const vtkBoundingBox  &globalBounds,
 //-----------------------------------------------------------------------------
 int vtkSpyPlotBlock::FixInformation(const vtkBoundingBox &globalBounds,
                                     int extents[6],
-                                    int realExtents[6], 
+                                    int realExtents[6],
                                     int realDims[3],
                                     vtkDataArray *ca[3]
   )
@@ -291,11 +292,11 @@ int vtkSpyPlotBlock::FixInformation(const vtkBoundingBox &globalBounds,
       }
     return 1;
     }
-  
+
 
   int i, j, hasBadGhostCells = 0;
   int vectorsWereFixed = 0;
- 
+
   vtkDebugMacro( "Vectors for block: ");
   vtkDebugMacro( "  X: " << this->XYZArrays[0]->GetNumberOfTuples() );
   vtkDebugMacro( "  Y: " << this->XYZArrays[1]->GetNumberOfTuples() );
@@ -317,7 +318,7 @@ int vtkSpyPlotBlock::FixInformation(const vtkBoundingBox &globalBounds,
 
     minV = MinBlockBound(i);
     maxV = MaxBlockBound(i);
-    vtkDebugMacro( "Bounds[" << (j) << "] = " << minV 
+    vtkDebugMacro( "Bounds[" << (j) << "] = " << minV
                    <<" Bounds[" << (j+1) << "] = " << maxV);
     ca[i] = this->XYZArrays[i];
     if (minV < minP[i])
@@ -336,7 +337,7 @@ int vtkSpyPlotBlock::FixInformation(const vtkBoundingBox &globalBounds,
       realExtents[j]=0;
       }
     j++;
-    
+
     if (maxV > maxP[i])
       {
       realExtents[j] = this->Dimensions[i] - 1;
@@ -384,7 +385,7 @@ int vtkSpyPlotBlock::Read(int isAMR, int fileVersion, vtkSpyPlotIStream *stream)
     {
     this->Status.AMR = 1;
     }
-  else 
+  else
     {
     this->Status.AMR = 0;
     }
@@ -457,7 +458,7 @@ int vtkSpyPlotBlock::Read(int isAMR, int fileVersion, vtkSpyPlotIStream *stream)
       this->XYZArrays[i]->SetNumberOfTuples(this->Dimensions[i]+1);
       }
     }
-  else 
+  else
     {
     for (i = 0; i < 3; i++)
       {
@@ -473,7 +474,7 @@ int vtkSpyPlotBlock::Read(int isAMR, int fileVersion, vtkSpyPlotIStream *stream)
 }
 
 //-----------------------------------------------------------------------------
-int vtkSpyPlotBlock::Scan(vtkSpyPlotIStream *stream, 
+int vtkSpyPlotBlock::Scan(vtkSpyPlotIStream *stream,
                           unsigned char *isAllocated,
                           int fileVersion)
 {
@@ -495,7 +496,7 @@ int vtkSpyPlotBlock::Scan(vtkSpyPlotIStream *stream,
     {
     *isAllocated = 1;
     }
-  else 
+  else
     {
     *isAllocated = 0;
     }
@@ -507,7 +508,7 @@ int vtkSpyPlotBlock::Scan(vtkSpyPlotIStream *stream,
     vtkGenericWarningMacro("Could not read in block's active state");
     return 0;
     }
-  
+
   // Read in the level of the block
   if (!stream->ReadInt32s(temp, 1))
     {
@@ -547,11 +548,11 @@ void vtkSpyPlotBlock::SetCoordinateSystem(const int &coordinateSystem)
   //if the number inputed is invalid we will make it a 3D coordinate
   switch(coordinateSystem)
     {
-    case vtkSpyPlotBlock::Cylinder1D:      
+    case vtkSpyPlotBlock::Cylinder1D:
       this->CoordSystem = vtkSpyPlotBlock::Cylinder1D;
       break;
     case vtkSpyPlotBlock::Sphere1D:
-      this->CoordSystem = vtkSpyPlotBlock::Sphere1D;  
+      this->CoordSystem = vtkSpyPlotBlock::Sphere1D;
       break;
     case vtkSpyPlotBlock::Cartesian2D:
       this->CoordSystem = vtkSpyPlotBlock::Cartesian2D;
@@ -567,32 +568,23 @@ void vtkSpyPlotBlock::SetCoordinateSystem(const int &coordinateSystem)
 }
 
 //-----------------------------------------------------------------------------
-void vtkSpyPlotBlock::ComputeDerivedVariables( vtkCellData *data, 
-  const int &numberOfMaterials, vtkDataArray** materialMasses, 
+void vtkSpyPlotBlock::ComputeDerivedVariables( vtkCellData *data,
+  const int &numberOfMaterials, vtkDataArray** materialMasses,
   vtkDataArray** materialVolumeFractions,
   const int& downConvertVolumeFraction  ) const
-{  
+{
   vtkIdType arraySize =
       this->SavedRealDims[0]*this->SavedRealDims[1]*this->SavedRealDims[2];
   vtkDoubleArray* volumeArray = vtkDoubleArray::New();
   volumeArray->SetName("Derived Volume");
   volumeArray->SetNumberOfValues(arraySize);
 
-  //first compute the volume array and hold onto it
-  double volume = -1;
-  vtkIdType pos = 0;
-  for ( int k=0; k < this->SavedRealDims[2]; k++)
-    {
-    for ( int j=0; j < this->SavedRealDims[1]; j++)
-      {
-      for ( int i=0; i < this->SavedRealDims[0]; i++, pos++)
-        {
-        //sum the mass for each each material
-        volumeArray->SetValue(pos,this->GetCellVolume(i,j,k));
-        }
-      }
-    }
+  vtkDoubleArray* averageDensityArray = vtkDoubleArray::New();
+  averageDensityArray->SetName("Derived Average Density");
+  averageDensityArray->SetNumberOfValues(arraySize);
 
+  typedef std::map<int, vtkDoubleArray*> MapOfArrays;
+  MapOfArrays materialDensityArrays;
 
   for ( int i=0; i < numberOfMaterials; i++)
     {
@@ -607,25 +599,7 @@ void vtkSpyPlotBlock::ComputeDerivedVariables( vtkCellData *data,
       materialDensity->SetNumberOfComponents(1);
       materialDensity->SetNumberOfTuples(arraySize);
 
-      if(downConvertVolumeFraction)
-        {
-        vtkUnsignedCharArray* materialFraction =
-            vtkUnsignedCharArray::SafeDownCast(materialVolumeFractions[i]);
-        this->ComputeMaterialDensity(materialMasses[i],
-                                   materialFraction,
-                                   volumeArray,
-                                   materialDensity);
-        }
-      else
-        {
-        vtkFloatArray* materialFraction =
-            vtkFloatArray::SafeDownCast(materialVolumeFractions[i]);
-        this->ComputeMaterialDensity(materialMasses[i],
-                                   materialFraction,
-                                   volumeArray,
-                                   materialDensity);
-        }
-
+      materialDensityArrays[i] = materialDensity;
       data->AddArray(materialDensity);
       materialDensity->FastDelete();
       }
@@ -633,10 +607,58 @@ void vtkSpyPlotBlock::ComputeDerivedVariables( vtkCellData *data,
 
   data->AddArray(volumeArray);
   volumeArray->FastDelete();
+
+  data->AddArray(averageDensityArray);
+  averageDensityArray->FastDelete();
+
+  vtkIdType pos = 0;
+  for ( int k=0; k < this->SavedRealDims[2]; k++)
+    {
+    for ( int j=0; j < this->SavedRealDims[1]; j++)
+      {
+      for ( int i=0; i < this->SavedRealDims[0]; i++, pos++)
+        {
+        //sum the mass for each each material
+        volumeArray->SetValue(pos, this->GetCellVolume(i,j,k));
+
+        double mass_sum = 0, occupied_volume_sum = 0;
+        for (MapOfArrays::iterator iter = materialDensityArrays.begin();
+          iter != materialDensityArrays.end(); ++iter)
+          {
+          int index = iter->first;
+          vtkDoubleArray* materialDensity = iter->second;
+          double material_mass = 0, material_volume = 0;
+          if (downConvertVolumeFraction)
+            {
+            vtkUnsignedCharArray* materialFraction =
+              static_cast<vtkUnsignedCharArray*>(materialVolumeFractions[index]);
+            this->ComputeMaterialDensity(pos, materialMasses[index],
+              materialFraction, volumeArray, materialDensity,
+              &material_mass, &material_volume);
+            }
+          else
+            {
+            vtkFloatArray* materialFraction =
+              static_cast<vtkFloatArray*>(materialVolumeFractions[index]);
+            this->ComputeMaterialDensity(pos, materialMasses[index],
+              materialFraction, volumeArray, materialDensity,
+              &material_mass, &material_volume);
+            }
+          mass_sum += material_mass;
+          occupied_volume_sum += material_volume;
+          }
+
+        double average_density = (occupied_volume_sum == 0)? 0 :
+          (mass_sum / occupied_volume_sum);
+        averageDensityArray->SetValue(pos, average_density);
+        }
+      }
+    }
 }
+
 //-----------------------------------------------------------------------------
 double vtkSpyPlotBlock::GetCellVolume(int i, int j, int k) const
-{  
+{
 
   //make sure the cell index is valid;
   double volume = -1;
@@ -654,77 +676,84 @@ double vtkSpyPlotBlock::GetCellVolume(int i, int j, int k) const
     float* z = static_cast<float*>(this->XYZArrays[2]->GetVoidPointer(0));
     switch(this->CoordSystem)
       {
-      case vtkSpyPlotBlock::Cylinder1D:      
-        volume = vtkMath::DoublePi() * (x[i+1]*x[i+1]-x[i]*x[i]);;
+      case vtkSpyPlotBlock::Cylinder1D:
+        volume = vtkMath::Pi() * (x[i+1]*x[i+1]-x[i]*x[i]);;
         break;
       case vtkSpyPlotBlock::Sphere1D:
-        volume = 4 * (vtkMath::DoublePi()/3) * (x[i+1]*x[i+1]*x[i+1]-x[i]*x[i]*x[i]);
+        volume = 4 * (vtkMath::Pi()/3) * (x[i+1]*x[i+1]*x[i+1]-x[i]*x[i]*x[i]);
         break;
       case vtkSpyPlotBlock::Cartesian2D:
         volume = (y[j+1]-y[j])*(x[i+1]-x[i]);
         break;
       case vtkSpyPlotBlock::Cylinder2D:
-        volume = vtkMath::DoublePi() *(y[j+1]-y[j])*(x[i+1]*x[i+1]-x[i]*x[i]);
+        volume = vtkMath::Pi() *(y[j+1]-y[j])*(x[i+1]*x[i+1]-x[i]*x[i]);
         break;
       case vtkSpyPlotBlock::Cartesian3D:
-        (z[k+1]-z[k])*(y[j+1]-y[j])*(x[i+1]-x[i]);
+        volume = (z[k+1]-z[k])*(y[j+1]-y[j])*(x[i+1]-x[i]);
         break;
       }
   return volume;
 }
 
 //-----------------------------------------------------------------------------
-void vtkSpyPlotBlock::ComputeMaterialDensity(vtkDataArray*  materialMass,
-                                             vtkUnsignedCharArray* materialFraction,
-                                             vtkDoubleArray* volumes,
-                                             vtkDoubleArray* materialDensity) const
+void vtkSpyPlotBlock::ComputeMaterialDensity(
+  vtkIdType pos,
+  vtkDataArray*  materialMass, vtkUnsignedCharArray* materialFraction,
+  vtkDoubleArray* volumes, vtkDoubleArray* materialDensity,
+  double * material_mass, double* material_volume) const
 {
   double mass = -1, volume = -1, density = -1, volfrac = -1;
-  const vtkIdType size = materialMass->GetNumberOfTuples();
-  for(vtkIdType i=0; i < size; ++i)
-    {
-    mass = materialMass->GetTuple1(i);
-    volfrac = static_cast<int>(materialFraction->GetValue(i)) / 255.0;
-    volume = volumes->GetValue(i);
-    if(volfrac == 0 || mass == 0 || volume == 0)
-      {
-      density = 0;
-      }
-    else
-      {
-      density = mass / ( volume * volfrac );
-      }
 
-    materialDensity->SetValue(i,density);
+  mass = materialMass->GetTuple1(pos);
+  volfrac = static_cast<int>(materialFraction->GetValue(pos)) / 255.0;
+  volume = volumes->GetValue(pos);
+  if(volfrac == 0 || mass == 0 || volume == 0)
+    {
+    density = 0;
+    *material_mass = 0;
+    *material_volume = 0;
     }
+  else
+    {
+    density = mass / ( volume * volfrac );
+
+    *material_mass = mass;
+    *material_volume = volume*volfrac;
+    }
+
+  materialDensity->SetValue(pos,density);
 }
 
 //-----------------------------------------------------------------------------
-void vtkSpyPlotBlock::ComputeMaterialDensity(vtkDataArray*  materialMass,
-                                             vtkFloatArray* materialFraction,
-                                             vtkDoubleArray* volumes,
-                                             vtkDoubleArray* materialDensity) const
+void vtkSpyPlotBlock::ComputeMaterialDensity(
+  vtkIdType pos,
+  vtkDataArray*  materialMass, vtkFloatArray* materialFraction,
+  vtkDoubleArray* volumes, vtkDoubleArray* materialDensity,
+  double * material_mass, double* material_volume) const
 {
-
   double mass = -1, volume = -1, density = -1, volfrac = -1;
-  const vtkIdType size = materialMass->GetNumberOfTuples();
-  for(vtkIdType i=0; i < size; ++i)
+
+  mass = materialMass->GetTuple1(pos);
+  volfrac = materialFraction->GetValue(pos);
+  volume = volumes->GetValue(pos);
+
+  if(volfrac == 0 || mass == 0 || volume == 0)
     {
-    mass = materialMass->GetTuple1(i);
-    volfrac = materialFraction->GetValue(i);
-    volume = volumes->GetValue(i);
-    if(volfrac == 0 || mass == 0 || volume == 0)
-      {
-      density = 0;
-      }
-    else
-      {
-      density = mass / ( volume * volfrac );
-      }
-    materialDensity->SetValue(i,density);
+    density = 0;
+
+    *material_mass = 0;
+    *material_volume = 0;
     }
+  else
+    {
+    density = mass / ( volume * volfrac );
+
+    *material_mass = mass;
+    *material_volume = volume*volfrac;
+    }
+  materialDensity->SetValue(pos,density);
 }
- 
+
 //-----------------------------------------------------------------------------
 /* SetGeometry - sets the geometric definition of the block's ith direction
    encodeInfo is a runlength delta encoded string of size infoSize
@@ -734,12 +763,12 @@ void vtkSpyPlotBlock::ComputeMaterialDensity(vtkDataArray*  materialMass,
    the result in *out. n is the number of doubles to encode. n_out
    is the number of bytes used for the compression (and stored at
    *out). delta is the smallest change of adjacent values that will
-   be accepted (changes smaller than delta will be ignored). 
+   be accepted (changes smaller than delta will be ignored).
 
 */
 
 int vtkSpyPlotBlock::SetGeometry(int dir,
-                                 const unsigned char* encodedInfo, 
+                                 const unsigned char* encodedInfo,
                                  int infoSize)
 {
   int compIndex = 0, inIndex = 0;
@@ -787,7 +816,7 @@ int vtkSpyPlotBlock::SetGeometry(int dir,
         if ( compIndex >= compSize )
           {
           vtkErrorMacro( "Problem doing RLD decode. "
-                         << "Too much data generated. Excpected: " 
+                         << "Too much data generated. Excpected: "
                          << compSize );
           return 0;
           }
@@ -804,7 +833,7 @@ int vtkSpyPlotBlock::SetGeometry(int dir,
         if ( compIndex >= compSize )
           {
           vtkErrorMacro( "Problem doing RLD decode. "
-                         << "Too much data generated. Excpected: " 
+                         << "Too much data generated. Excpected: "
                          << compSize );
           return 0;
           }
@@ -817,7 +846,7 @@ int vtkSpyPlotBlock::SetGeometry(int dir,
         }
       inIndex += 4*(runLength-128)+1;
       }
-    } // while 
+    } // while
 
   return 1;
-} 
+}

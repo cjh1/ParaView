@@ -109,11 +109,6 @@ pqServerConfigurationCollection::pqServerConfigurationCollection(QObject* parent
     this->load(systemServers(), false);
     this->load(userServers(), true);
     }
-  else if (options && options->GetDisableRegistry())
-    {
-    // load the testing servers resource.
-    this->load(":/pqCoreTesting/pqTestingServers.pvsc", false);
-    }
 }
 
 //-----------------------------------------------------------------------------
@@ -206,9 +201,9 @@ QString pqServerConfigurationCollection::saveContents(bool only_mutable) const
 
 //-----------------------------------------------------------------------------
 void pqServerConfigurationCollection::addConfiguration(
-  vtkPVXMLElement* configuration, bool mutable_config)
+  vtkPVXMLElement* arg_configuration, bool mutable_config)
 {
-  pqServerConfiguration config(configuration);
+  pqServerConfiguration config(arg_configuration);
   config.setMutable(mutable_config);
   this->addConfiguration(config);
 }

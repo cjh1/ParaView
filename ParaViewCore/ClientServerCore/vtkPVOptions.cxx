@@ -14,11 +14,13 @@
 #include "vtkPVOptions.h"
 
 #include "vtkObjectFactory.h"
+#include "vtkProcessModule.h"
 #include "vtkPVConfig.h" //For PARAVIEW_ALWAYS_SECURE_CONNECTION option
 #include "vtkPVOptionsXMLParser.h"
-#include "vtkProcessModule.h"
+#include "vtkPVView.h"
 
 #include <vtksys/CommandLineArguments.hxx>
+#include <vtksys/SystemInformation.hxx>
 #include <vtksys/SystemTools.hxx>
 
 
@@ -52,25 +54,37 @@ vtkPVOptions::vtkPVOptions()
   this->ClientMode = 0;
   this->ServerMode = 0;
   this->MultiClientMode = 0;
+  this->MultiServerMode = 0;
+
   this->RenderServerMode = 0;
   this->SymmetricMPIMode = 0;
 
   this->TellVersion = 0;
 
+  this->AMRStreaming = 0;
+
+  this->UseCudaInterop = 0;
+
   // initialize host names
+  vtksys::SystemInformation sys_info;
+  sys_info.RunOSCheck();
+  const char* sys_hostname = sys_info.GetHostname()?
+    sys_info.GetHostname() : "localhost";
+
   this->ServerHostName = 0;
-  this->SetServerHostName("localhost");
+  this->SetServerHostName(sys_hostname);
   this->DataServerHostName = 0;
-  this->SetDataServerHostName("localhost");
+  this->SetDataServerHostName(sys_hostname);
   this->RenderServerHostName = 0;
-  this->SetRenderServerHostName("localhost");
+  this->SetRenderServerHostName(sys_hostname);
   this->ClientHostName = 0;
-  this->SetClientHostName("localhost");
+  this->SetClientHostName(sys_hostname);
   // initialize ports to defaults
   this->ServerPort = 11111;
   this->DataServerPort = 11111;
   this->RenderServerPort = 22221;
   this->RenderNodePort = 0;  // this means pick a random port
+  this->ServerURL = 0;
 
   this->ReverseConnection = 0;
   this->UseSoftwareRendering = 0;
@@ -110,6 +124,7 @@ vtkPVOptions::~vtkPVOptions()
   this->SetLogFileName(0);
   this->SetStereoType(0);
   this->SetParaViewDataName(0);
+  this->SetServerURL(0);
 }
 
 //----------------------------------------------------------------------------
@@ -150,6 +165,10 @@ void vtkPVOptions::Initialize()
                            "connect to it and share the same visualization session.",
                            vtkPVOptions::PVDATA_SERVER|vtkPVOptions::PVSERVER);
 
+  this->AddBooleanArgument("--multi-servers", 0, &this->MultiServerMode,
+                           "Allow client to connect to several pvserver",
+                           vtkPVOptions::PVCLIENT);
+
   this->AddArgument("--data", 0, &this->ParaViewDataName,
                     "Load the specified data. "
                     "To specify file series replace the numeral with a '.' eg. "
@@ -176,6 +195,13 @@ void vtkPVOptions::Initialize()
                     vtkPVOptions::PVCLIENT| vtkPVOptions::PVRENDER_SERVER
                     | vtkPVOptions::PVSERVER | vtkPVOptions::PARAVIEW);
   */
+
+  this->AddArgument("--server-url", "-url",
+                    &this->ServerURL,
+                    "Set the server-url to connect with when the client starts. "
+                    "--server (-s) option supersedes this option, hence one should only use "
+                    "one of the two options.",
+                    vtkPVOptions::PVCLIENT|vtkPVOptions::PARAVIEW);
 
   this->AddArgument("--connect-id", 0, &this->ConnectID,
                     "Set the ID of the server and client to make sure they match.",
@@ -271,6 +297,17 @@ void vtkPVOptions::Initialize()
     &this->SymmetricMPIMode,
     "When specified, the python script is processed symmetrically on all processes.",
     vtkPVOptions::PVBATCH);
+
+  this->AddBooleanArgument("--amr-streaming", "-amr",
+    &this->AMRStreaming,
+    "EXPERIMENTAL: When specified, AMR streaming for volume rendering is "
+    "enabled",
+    vtkPVOptions::PVCLIENT | vtkPVOptions::PVSERVER);
+
+  this->AddBooleanArgument("--use-cuda-interop", "-cudaiop",
+    &this->UseCudaInterop,
+    "When specified, piston classes will use cuda interop for direct rendering",
+    vtkPVOptions::PVCLIENT | vtkPVOptions::PVSERVER);
 }
 
 //----------------------------------------------------------------------------
@@ -341,6 +378,15 @@ int vtkPVOptions::PostProcess(int, const char* const*)
     return 0;
     }
 #endif //PARAVIEW_ALWAYS_SECURE_CONNECTION
+
+  if (this->AMRStreaming)
+    {
+    vtkPVView::SetEnableStreaming(true);
+    }
+  else
+    {
+    vtkPVView::SetEnableStreaming(false);
+    }
 
   return 1;
 }
@@ -417,6 +463,10 @@ void vtkPVOptions::PrintSelf(ostream& os, vtkIndent indent)
     {
     os << indent << "Allow several client to connect to that server.\n";
     }
+  if (this->MultiServerMode)
+    {
+    os << indent << "Allow a client to connect to multiple servers at the same time.\n";
+    }
 
   if (this->RenderServerMode)
     {
@@ -485,4 +535,9 @@ void vtkPVOptions::PrintSelf(ostream& os, vtkIndent indent)
   os << indent << "LogFileName: "
     << (this->LogFileName? this->LogFileName : "(none)") << endl;
   os << indent << "SymmetricMPIMode: " << this->SymmetricMPIMode << endl;
+  os << indent << "ServerURL: "
+     << (this->ServerURL? this->ServerURL : "(none)") << endl;
+  os << indent << "AMRStreaming:" << this->AMRStreaming << endl;
+
+  os << indent << "UseCudaInterop" << this->UseCudaInterop << std::endl;
 }

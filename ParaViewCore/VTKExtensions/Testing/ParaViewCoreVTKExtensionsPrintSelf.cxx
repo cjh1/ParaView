@@ -33,11 +33,11 @@
 #include "vtkCleanUnstructuredGrid.h"
 #include "vtkCompositeAnimationPlayer.h"
 #include "vtkCompositeDataToUnstructuredGridFilter.h"
-#include "vtkContextNamedOptions.h"
+#include "vtkChartNamedOptions.h"
 #include "vtkCSVExporter.h"
 #include "vtkCSVWriter.h"
 #include "vtkDataSetToRectilinearGrid.h"
-#include "vtkEnzoReader.h"
+//#include "vtkEnzoReader.h"
 #include "vtkEquivalenceSet.h"
 #include "vtkExodusFileSeriesReader.h"
 #include "vtkExtractHistogram.h"
@@ -46,7 +46,7 @@
 #include "vtkFileSeriesReader.h"
 #include "vtkFileSeriesWriter.h"
 #include "vtkFlashContour.h"
-#include "vtkFlashReader.h"
+//#include "vtkFlashReader.h"
 #include "vtkGridConnectivity.h"
 #include "vtkHierarchicalFractal.h"
 #include "vtkImageCompressor.h"
@@ -70,7 +70,6 @@
 #include "vtkMergeArrays.h"
 #include "vtkMergeCompositeDataSet.h"
 #include "vtkMinMax.h"
-#include "vtkMPICompositeManager.h"
 #include "vtkMultiProcessControllerHelper.h"
 #include "vtkOrderedCompositeDistributor.h"
 #include "vtkParallelSerialWriter.h"
@@ -115,7 +114,6 @@
 #include "vtkPVEnSightMasterServerTranslator.h"
 #include "vtkPVExponentialKeyFrame.h"
 #include "vtkPVExtentTranslator.h"
-#include "vtkPVExtractSelection.h"
 #include "vtkPVExtractVOI.h"
 #include "vtkPVFrustumActor.h"
 #include "vtkPVGenericRenderWindowInteractor.h"
@@ -174,7 +172,6 @@
 #include "vtkSpyPlotUniReader.h"
 #include "vtkSquirtCompressor.h"
 #include "vtkSurfaceVectors.h"
-#include "vtkTableFFT.h"
 #include "vtkTexturePainter.h"
 #include "vtkTilesHelper.h"
 #include "vtkTileDisplayHelper.h"
@@ -202,12 +199,13 @@
 #include "vtkXMLPVDWriter.h"
 #include "vtkZlibImageCompressor.h"
 
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
 # include "vtkAllToNRedistributeCompositePolyData.h"
 # include "vtkAllToNRedistributePolyData.h"
 # include "vtkBalancedRedistributePolyData.h"
 # include "vtkRedistributePolyData.h"
 # include "vtkWeightedRedistributePolyData.h"
+# include "vtkMPICompositeManager.h"
 # ifdef PARAVIEW_USE_ICE_T
 #  include "vtkIceTCompositePass.h"
 #  include "vtkIceTContext.h"
@@ -239,11 +237,11 @@ int main(int , char *[])
   PRINT_SELF(vtkCleanUnstructuredGrid);
   PRINT_SELF(vtkCompositeAnimationPlayer);
   PRINT_SELF(vtkCompositeDataToUnstructuredGridFilter);
-  PRINT_SELF(vtkContextNamedOptions);
+  PRINT_SELF(vtkChartNamedOptions);
   PRINT_SELF(vtkCSVExporter);
   PRINT_SELF(vtkCSVWriter);
   PRINT_SELF(vtkDataSetToRectilinearGrid);
-  PRINT_SELF(vtkEnzoReader);
+  //PRINT_SELF(vtkEnzoReader);
   PRINT_SELF(vtkEquivalenceSet);
   PRINT_SELF(vtkExodusFileSeriesReader);
   PRINT_SELF(vtkExtractHistogram);
@@ -252,7 +250,7 @@ int main(int , char *[])
   PRINT_SELF(vtkFileSeriesReader);
   PRINT_SELF(vtkFileSeriesWriter);
   PRINT_SELF(vtkFlashContour);
-  PRINT_SELF(vtkFlashReader);
+  //PRINT_SELF(vtkFlashReader);
   PRINT_SELF(vtkGridConnectivity);
   PRINT_SELF(vtkHierarchicalFractal);
   PRINT_SELF(vtkImageCompressor);
@@ -276,7 +274,6 @@ int main(int , char *[])
   PRINT_SELF(vtkMergeArrays);
   PRINT_SELF(vtkMergeCompositeDataSet);
   PRINT_SELF(vtkMinMax);
-  PRINT_SELF(vtkMPICompositeManager);
   PRINT_SELF(vtkMultiProcessControllerHelper);
   PRINT_SELF(vtkOrderedCompositeDistributor);
   PRINT_SELF(vtkParallelSerialWriter);
@@ -321,7 +318,6 @@ int main(int , char *[])
   PRINT_SELF(vtkPVEnSightMasterServerTranslator);
   PRINT_SELF(vtkPVExponentialKeyFrame);
   PRINT_SELF(vtkPVExtentTranslator);
-  PRINT_SELF(vtkPVExtractSelection);
   PRINT_SELF(vtkPVExtractVOI);
   PRINT_SELF(vtkPVFrustumActor);
   PRINT_SELF(vtkPVGenericRenderWindowInteractor);
@@ -380,7 +376,6 @@ int main(int , char *[])
   PRINT_SELF(vtkSpyPlotUniReader);
   PRINT_SELF(vtkSquirtCompressor);
   PRINT_SELF(vtkSurfaceVectors);
-  PRINT_SELF(vtkTableFFT);
   PRINT_SELF(vtkTexturePainter);
   //PRINT_SELF(vtkTilesHelper);
   //PRINT_SELF(vtkTileDisplayHelper);
@@ -407,12 +402,13 @@ int main(int , char *[])
   PRINT_SELF(vtkXMLCollectionReader);
   PRINT_SELF(vtkXMLPVDWriter);
   PRINT_SELF(vtkZlibImageCompressor);
-#ifdef VTK_USE_MPI
+#ifdef PARAVIEW_USE_MPI
   PRINT_SELF(vtkAllToNRedistributeCompositePolyData);
   PRINT_SELF(vtkAllToNRedistributePolyData);
   PRINT_SELF(vtkBalancedRedistributePolyData);
   PRINT_SELF(vtkRedistributePolyData);
   PRINT_SELF(vtkWeightedRedistributePolyData);
+  PRINT_SELF(vtkMPICompositeManager);
 # ifdef PARAVIEW_USE_ICE_T
   PRINT_SELF(vtkIceTCompositePass);
   PRINT_SELF(vtkIceTContext);

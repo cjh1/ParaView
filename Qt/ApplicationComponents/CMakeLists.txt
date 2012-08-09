@@ -34,12 +34,15 @@ SET (MOC_HEADERS
   pqCameraUndoRedoReaction.h
   pqCategoryToolbarsBehavior.h
   pqChangePipelineInputReaction.h
+  pqChartSelectionReaction.h
+  pqColorEditorPropertyWidget.h
   pqColorToolbar.h
   pqCollaborationBehavior.h
   pqCommandLineOptionsBehavior.h
   pqCopyReaction.h
   pqCrashRecoveryBehavior.h
   pqCreateCustomFilterReaction.h
+  pqCubeAxesPropertyWidget.h
   pqDataTimeStepBehavior.h
   pqDataQueryReaction.h
   pqDefaultMainWindow.h
@@ -61,12 +64,14 @@ SET (MOC_HEADERS
   pqManageLinksReaction.h
   pqManagePluginsReaction.h
   pqMasterOnlyReaction.h
+  pqMultiServerBehavior.h
   pqObjectPickingBehavior.h
   pqParaViewBehaviors.h
   pqPersistentMainWindowStateBehavior.h
   pqPipelineContextMenuBehavior.h
   pqPluginActionGroupBehavior.h
   pqPluginDockWidgetsBehavior.h
+  pqPluginDocumentationBehavior.h
   pqProxyGroupMenuManager.h
   pqPVAnimationWidget.h
   pqPVApplicationCore.h
@@ -88,11 +93,13 @@ SET (MOC_HEADERS
   pqServerDisconnectReaction.h
   pqSourcesMenuReaction.h
   pqSpreadSheetVisibilityBehavior.h
+  pqStandardPropertyWidgetInterface.h
   pqStandardSummaryPanelImplementation.h
   pqStandardViewFrameActionGroup.h
   pqStatusBar.h
   pqTestingReaction.h
   pqTimerLogReaction.h
+  pqToggleInteractionViewMode.h
   pqUndoRedoBehavior.h
   pqUndoRedoReaction.h
   pqVCRToolbar.h
@@ -101,6 +108,7 @@ SET (MOC_HEADERS
   pqViewMenuManager.h
   pqViewSettingsManager.h
   pqViewSettingsReaction.h
+  pqViewStreamingBehavior.h
 )
 
 # List UI files.
@@ -152,8 +160,12 @@ SET (SOURCE_FILES
   pqCategoryToolbarsBehavior.h
   pqChangePipelineInputReaction.cxx
   pqChangePipelineInputReaction.h
+  pqChartSelectionReaction.cxx
+  pqChartSelectionReaction.h
   pqCollaborationBehavior.cxx
   pqCollaborationBehavior.h
+  pqColorEditorPropertyWidget.cxx
+  pqColorEditorPropertyWidget.h
   pqColorToolbar.cxx
   pqColorToolbar.h
   pqCommandLineOptionsBehavior.cxx
@@ -164,6 +176,8 @@ SET (SOURCE_FILES
   pqCrashRecoveryBehavior.h
   pqCreateCustomFilterReaction.cxx
   pqCreateCustomFilterReaction.h
+  pqCubeAxesPropertyWidget.cxx
+  pqCubeAxesPropertyWidget.h
   pqDataTimeStepBehavior.cxx
   pqDataTimeStepBehavior.h
   pqDataQueryReaction.h
@@ -186,8 +200,8 @@ SET (SOURCE_FILES
   pqFiltersMenuReaction.h
   pqFixPathsInStateFilesBehavior.cxx
   pqFixPathsInStateFilesBehavior.h
-  pqGenericSummaryDisplayPanel.h
   pqGenericSummaryDisplayPanel.cxx
+  pqGenericSummaryDisplayPanel.h
   pqHelpReaction.cxx
   pqHelpReaction.h
   pqIgnoreSourceTimeReaction.cxx
@@ -206,6 +220,8 @@ SET (SOURCE_FILES
   pqManagePluginsReaction.h
   pqMasterOnlyReaction.h
   pqMasterOnlyReaction.cxx
+  pqMultiServerBehavior.h
+  pqMultiServerBehavior.cxx
   pqObjectPickingBehavior.cxx
   pqObjectPickingBehavior.h
   pqParaViewBehaviors.cxx
@@ -220,6 +236,8 @@ SET (SOURCE_FILES
   pqPluginActionGroupBehavior.h
   pqPluginDockWidgetsBehavior.cxx
   pqPluginDockWidgetsBehavior.h
+  pqPluginDocumentationBehavior.cxx
+  pqPluginDocumentationBehavior.h
   pqProxyGroupMenuManager.cxx
   pqProxyGroupMenuManager.h
   pqPVAnimationWidget.cxx
@@ -262,6 +280,8 @@ SET (SOURCE_FILES
   pqSourcesMenuReaction.h
   pqSpreadSheetVisibilityBehavior.cxx
   pqSpreadSheetVisibilityBehavior.h
+  pqStandardPropertyWidgetInterface.cxx
+  pqStandardPropertyWidgetInterface.h
   pqStandardSummaryPanelImplementation.cxx
   pqStandardSummaryPanelImplementation.h
   pqStandardViewFrameActionGroup.cxx
@@ -272,6 +292,8 @@ SET (SOURCE_FILES
   pqTestingReaction.h
   pqTimerLogReaction.cxx
   pqTimerLogReaction.h
+  pqToggleInteractionViewMode.h
+  pqToggleInteractionViewMode.cxx
   pqUndoRedoBehavior.cxx
   pqUndoRedoBehavior.h
   pqUndoRedoReaction.cxx
@@ -288,6 +310,8 @@ SET (SOURCE_FILES
   pqViewSettingsManager.h
   pqViewSettingsReaction.cxx
   pqViewSettingsReaction.h
+  pqViewStreamingBehavior.cxx
+  pqViewStreamingBehavior.h
 )
 #---------------------------------------------
 IF(PARAVIEW_ENABLE_PYTHON)
@@ -335,7 +359,7 @@ SOURCE_GROUP("Generated" FILES
   ${CMAKE_CURRENT_BINARY_DIR}/pqApplicationComponentsExport.h
 )
 
-VTK_ADD_LIBRARY(pqApplicationComponents
+PVVTK_ADD_LIBRARY(pqApplicationComponents
   ${SOURCE_FILES}
   ${UI_BUILT_SOURCES}
   ${MOC_BUILT_SOURCES}

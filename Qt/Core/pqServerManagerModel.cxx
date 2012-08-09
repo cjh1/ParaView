@@ -45,7 +45,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkProcessModule.h"
 #include "vtkSmartPointer.h"
 #include "vtkSMOutputPort.h"
-#include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMSession.h"
 #include "vtkSMSessionClient.h"
 #include "vtkSMSourceProxy.h"
@@ -395,7 +395,7 @@ void pqServerManagerModel::onProxyUnRegistered(const QString& group,
   // Verify if the proxy is registered under a different name in the same group.
   // If so, we are simply renaming the proxy.
   vtkSmartPointer<vtkStringList> names = vtkSmartPointer<vtkStringList>::New();
-  vtkSMProxyManager* pxm = proxy->GetProxyManager();
+  vtkSMSessionProxyManager* pxm = proxy->GetSessionProxyManager();
   pxm->GetProxyNames(group.toAscii().data(), proxy, names);
   for (int cc=0; cc < names->GetLength(); cc++)
     {
@@ -435,6 +435,7 @@ void pqServerManagerModel::onProxyUnRegistered(const QString& group,
 
   if (view)
     {
+    view->cancelPendingRenders();
     emit this->viewRemoved(view);
     }
   else if (source)
@@ -462,7 +463,19 @@ void pqServerManagerModel::onConnectionCreated(vtkIdType id)
 
   vtkProcessModule* pm = vtkProcessModule::GetProcessModule();
   pqServer* server = new pqServer(id, pm->GetOptions(), this);
-  server->setResource(this->Internal->ActiveResource);
+
+  // Make sure the server resource is valid otherwise use session URL informations
+  // (this is used when we connect from Python in multi-server mode)
+  if(this->Internal->ActiveResource.scheme().isEmpty())
+    {
+    vtkSMSession* session = vtkSMSession::SafeDownCast(pm->GetSession(id));
+    server->setResource(pqServerResource(session->GetURI()));
+    }
+  else
+    {
+    server->setResource(this->Internal->ActiveResource);
+    }
+
   this->Internal->ActiveResource = pqServerResource();
 
   emit this->preItemAdded(server);

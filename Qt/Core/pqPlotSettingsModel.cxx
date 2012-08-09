@@ -442,4 +442,3 @@ int pqPlotSettingsModel::getSeriesMarkerStyle(int row) const
   return vtkSMPropertyHelper(this->Implementation->RepresentationProxy,
     "SeriesMarkerStyle").GetStatus(this->getSeriesName(row), 1);
 }
-

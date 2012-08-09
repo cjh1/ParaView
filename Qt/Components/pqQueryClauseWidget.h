@@ -53,11 +53,11 @@ public:
     INDEX = 0x1,
     GLOBALID =0x2,
     THRESHOLD = 0x4,
-    LOCATION =0x8,
     BLOCK =0x10,
     AMR_LEVEL=0x20,
     AMR_BLOCK=0x40,
     PROCESSID=0x80,
+    QUERY = 0x8,
     ANY=0xffff
     };
 
@@ -81,11 +81,6 @@ public:
   pqQueryClauseWidget(
     QWidget* parent=0, Qt::WindowFlags flags=0);
   virtual ~pqQueryClauseWidget();
-
-  /// Indicates whether this clause is deletable, true by default. If a clause
-  /// is not removable, the "-" button is disabled.
-  void setRemovable(bool);
-  bool isRemovable() const;
 
   /// Set/Get the data producer.
   void setProducer(pqOutputPort* p)
@@ -113,7 +108,7 @@ public slots:
   /// to extend VTK selection support for those, so we will implement them later
   /// (possibly 3.10/4.0)
   void initialize()
-    { this->initialize(CriteriaTypes(ANY) ^ PROCESSID ^ AMR_LEVEL ^ AMR_BLOCK); }
+    { this->initialize(CriteriaTypes(ANY) ^ PROCESSID ^ AMR_LEVEL ^ AMR_BLOCK ^ BLOCK); }
 
   /// initialize the widget only with the subset of criteria mentioned.
   /// A query clause has two components, the query term and the qualifiers. Some
@@ -123,9 +118,8 @@ public slots:
   void initialize(CriteriaTypes type_flags, bool qualifier_mode=false);
 
 signals:
-  /// fired when the user clicks the "-" button on the clause indicating that
-  /// this clause should be removed.
-  void removeClause();
+  /// Fired when the user clicks on the help button.
+  void helpRequested();
 
 protected slots:
   /// Based on the selection criteria, populate the options in the selection
@@ -165,6 +159,7 @@ protected:
   pqOutputPort* Producer;
   int AttributeType;
   bool AsQualifier;
+  QString LastQuery;
 private:
   Q_DISABLE_COPY(pqQueryClauseWidget)
   class pqInternals;

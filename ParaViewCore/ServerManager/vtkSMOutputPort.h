@@ -28,11 +28,13 @@
 #define __vtkSMOutputPort_h
 
 #include "vtkSMProxy.h"
+#include "vtkWeakPointer.h" // needed by SourceProxy pointer
 
 class vtkCollection;
 class vtkPVClassNameInformation;
 class vtkPVDataInformation;
 class vtkPVTemporalDataInformation;
+class vtkSMCompoundSourceProxy;
 class vtkSMSourceProxy;
 
 class VTK_EXPORT vtkSMOutputPort : public vtkSMProxy
@@ -73,8 +75,7 @@ public:
 
   // Description:
   // Provides access to the source proxy to which the output port belongs.
-  vtkSMSourceProxy* GetSourceProxy()
-    { return this->SourceProxy; }
+  vtkSMSourceProxy* GetSourceProxy();
 
   // Description:
   // Streaming plugin turns this on to prevent GUI from updating whole
@@ -103,8 +104,13 @@ protected:
   // Get temporal information from the server.
   virtual void GatherTemporalDataInformation();
 
-  void SetSourceProxy(vtkSMSourceProxy* src)
-    { this->SourceProxy = src; }
+  void SetSourceProxy(vtkSMSourceProxy* src);
+
+  // When set to non-null, GetSourceProxy() returns this rather than the real
+  // source-proxy set using SetSourceProxy(). This provides a mechanism for
+  // vtkSMCompoundSourceProxy to take ownership of ports that don't really
+  // belong to it.
+  void SetCompoundSourceProxy(vtkSMCompoundSourceProxy* src);
 
   // Description:
   // An internal update pipeline method that subclasses may override.
@@ -114,7 +120,8 @@ protected:
   vtkSetMacro(PortIndex, int);
   int PortIndex;
 
-  vtkSMSourceProxy* SourceProxy;
+  vtkWeakPointer<vtkSMSourceProxy> SourceProxy;
+  vtkWeakPointer<vtkSMCompoundSourceProxy> CompoundSourceProxy;
 
   vtkPVClassNameInformation* ClassNameInformation;
   int ClassNameInformationValid;
@@ -134,6 +141,7 @@ private:
   void operator=(const vtkSMOutputPort&); // Not implemented
 
   friend class vtkSMSourceProxy;
+  friend class vtkSMCompoundSourceProxy;
   void UpdatePipeline();
 
   // Update Pipeline with the given timestep request.

@@ -68,7 +68,7 @@ public:
   // Container widget that have an DeleteMacro action context
   QList<QPointer<QWidget> > DeleteWidgetContainers;
   // List of action linked to widget/menuItem used to delete a macro
-  QMap<QString, QAction*> DeleteActionMap;
+  QMap<QString, QPointer<QAction> > DeleteActionMap;
 };
 
 //----------------------------------------------------------------------------
@@ -368,15 +368,20 @@ void pqPythonMacroSupervisor::onMacroTriggered()
 void pqPythonMacroSupervisor::onDeleteMacroTriggered()
 {
   QObject* action = this->sender();
-  QMap<QString, QAction*>::const_iterator itr = this->Internal->DeleteActionMap.constBegin();
+  QList<QString> listOfMacroToDelete;
+  QMap<QString, QPointer<QAction> >::const_iterator itr = this->Internal->DeleteActionMap.constBegin();
   for ( ; itr != this->Internal->DeleteActionMap.constEnd(); ++itr)
     {
     if (itr.value() == action)
       {
       QString filename = itr.key();
-      pqPythonMacroSupervisor::removeStoredMacro(filename);
-      pqPythonMacroSupervisor::removeMacro(filename);
+      listOfMacroToDelete.append(filename);
       }
+    }
+  foreach(QString fileName, listOfMacroToDelete)
+    {
+    pqPythonMacroSupervisor::removeStoredMacro(fileName);
+    pqPythonMacroSupervisor::removeMacro(fileName);
     }
 }
 //----------------------------------------------------------------------------

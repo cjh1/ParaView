@@ -22,6 +22,7 @@
 #include "vtkObjectFactory.h"
 #include "vtkPVDefaultPass.h"
 #include "vtkRenderer.h"
+#include "vtkOpenGLRenderer.h"
 #include "vtkRenderState.h"
 #include "vtkRenderWindow.h"
 #include "vtkSmartPointer.h"
@@ -34,7 +35,7 @@
 #include <IceT.h>
 #include <IceTGL.h>
 
-#include <vtkstd/map>
+#include <map>
 
 // This pass is used to simply render an image onto the frame buffer. Used when
 // an ImageProcessingPass is set to paste the IceT composited image into the
@@ -228,12 +229,14 @@ vtkIceTSynchronizedRenderers::vtkIceTSynchronizedRenderers()
 
   this->ImageProcessingPass = NULL;
   this->RenderPass = NULL;
+
+  this->Identifier = 0;
 }
 
 //----------------------------------------------------------------------------
 vtkIceTSynchronizedRenderers::~vtkIceTSynchronizedRenderers()
 {
-  vtkTileDisplayHelper::GetInstance()->EraseTile(this);
+  vtkTileDisplayHelper::GetInstance()->EraseTile(this->Identifier);
 
   this->ImagePastingPass->Delete();
   this->IceTCompositePass->Delete();
@@ -316,14 +319,19 @@ void vtkIceTSynchronizedRenderers::HandleEndRender()
       {
       double viewport[4];
       this->IceTCompositePass->GetPhysicalViewport(viewport);
-      vtkTileDisplayHelper::GetInstance()->SetTile(this,
+      vtkTileDisplayHelper::GetInstance()->SetTile(this->Identifier,
         viewport, this->Renderer,
         lastRenderedImage);
       }
+    else
+      {
+      vtkTileDisplayHelper::GetInstance()->EraseTile(this->Identifier);
+      }
+
 
     // Write-back either the freshly rendered tile or what was most recently
     // rendered.
-    vtkTileDisplayHelper::GetInstance()->FlushTiles(this, 
+    vtkTileDisplayHelper::GetInstance()->FlushTiles(this->Identifier,
       this->Renderer->GetActiveCamera()->GetLeftEye());
     }
 }
@@ -338,7 +346,7 @@ void vtkIceTSynchronizedRenderers::SetRenderer(vtkRenderer* ren)
   this->Superclass::SetRenderer(ren);
   if (ren)
     {
-    ren->SetPass(this->CameraRenderPass);
+    this->Renderer->SetPass(this->CameraRenderPass);
     // icet cannot work correctly in tile-display mode is software culling is
     // applied in vtkRenderer inself. vtkPVIceTCompositePass will cull out-of-frustum
     // props using icet-model-view matrix later.

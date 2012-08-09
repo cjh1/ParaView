@@ -39,16 +39,15 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqParallelCoordinatesChartView.h"
 #include "pqPlotMatrixView.h"
 #include "pqRenderView.h"
-//#include "pqScatterPlotView.h"
 #include "pqServer.h"
 #include "pqSpreadSheetView.h"
 #include "pqTextRepresentation.h"
-#include "pqTwoDRenderView.h"
 #include "pqXYBarChartView.h"
 #include "pqXYChartView.h"
 #include "vtkSMComparativeViewProxy.h"
 #include "vtkSMContextViewProxy.h"
 #include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMRenderViewProxy.h"
 
 #include <QDebug>
@@ -66,9 +65,7 @@ QStringList pqStandardViewModules::viewTypes() const
 {
   return QStringList() <<
     pqRenderView::renderViewType() <<
-    pqTwoDRenderView::twoDRenderViewType() <<
     pqSpreadSheetView::spreadsheetViewType() <<
-//    pqScatterPlotView::scatterPlotViewType() <<
     pqXYChartView::XYChartViewType() <<
     pqXYBarChartView::XYBarChartViewType() <<
     pqComparativeRenderView::comparativeRenderViewType() <<
@@ -109,14 +106,6 @@ QString pqStandardViewModules::viewTypeName(const QString& type) const
     {
     return pqSpreadSheetView::spreadsheetViewTypeName();
     }
-  else if  (type == pqTwoDRenderView::twoDRenderViewType())
-    {
-    return pqTwoDRenderView::twoDRenderViewTypeName();
-    }
-//  else if  (type == pqScatterPlotView::scatterPlotViewType())
-//    {
-//    return pqScatterPlotView::scatterPlotViewTypeName();
-//    }
   else if (type == pqXYChartView::XYChartViewType())
     {
     return pqXYChartView::XYChartViewTypeName();
@@ -145,7 +134,7 @@ bool pqStandardViewModules::canCreateView(const QString& viewtype) const
 vtkSMProxy* pqStandardViewModules::createViewProxy(const QString& viewtype,
                                                    pqServer *server)
 {
-  vtkSMProxyManager* pxm = server->proxyManager();
+  vtkSMSessionProxyManager* pxm = server->proxyManager();
   const char* root_xmlname = 0;
   if(viewtype == pqRenderView::renderViewType())
     {
@@ -163,18 +152,10 @@ vtkSMProxy* pqStandardViewModules::createViewProxy(const QString& viewtype,
     {
     root_xmlname = "ComparativeXYChartView";
     }
-  else if (viewtype == pqTwoDRenderView::twoDRenderViewType())
-    {
-    root_xmlname = "2DRenderView";
-    }
   else if (viewtype == pqSpreadSheetView::spreadsheetViewType())
     {
     root_xmlname = "SpreadSheetView";
     }
-//  else if (viewtype == pqScatterPlotView::scatterPlotViewType())
-//    {
-//    root_xmlname = "ScatterPlotRenderView";
-//    }
   else if (viewtype == pqXYChartView::XYChartViewType())
     {
     root_xmlname = "XYChartView";
@@ -215,11 +196,6 @@ pqView* pqStandardViewModules::createView(const QString& viewtype,
   else if (viewtype == pqSpreadSheetView::spreadsheetViewType())
     {
     return new pqSpreadSheetView(
-      group, viewname, viewmodule, server, p);
-    }
-  else if (viewmodule->IsA("vtkSMTwoDRenderViewProxy"))
-    {
-    return new pqTwoDRenderView(
       group, viewname, viewmodule, server, p);
     }
   else if (viewmodule->IsA("vtkSMRenderViewProxy"))

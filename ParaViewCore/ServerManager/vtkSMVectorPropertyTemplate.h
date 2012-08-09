@@ -20,14 +20,15 @@
 #define __vtkSMVectorPropertyTemplate_h
 
 #include <assert.h>
-#include <vtkstd/vector>
-#include <vtkstd/algorithm>
-#include <vtkstd/string>
+#include <vector>
+#include <algorithm>
+#include <string>
 #include <vtksys/ios/sstream>
 #include "vtkCommand.h"
 #include <vtkPVXMLElement.h>
 #include "vtkSMProperty.h"
 #include <typeinfo>
+#include <limits>
 
 class vtkSMProperty;
 
@@ -36,9 +37,9 @@ class vtkSMVectorPropertyTemplate
 {
   vtkSMProperty* Property;
 public:
-  vtkstd::vector<T> Values;
-  vtkstd::vector<T> UncheckedValues;
-  vtkstd::vector<T> DefaultValues; // Values set in the XML configuration.
+  std::vector<T> Values;
+  std::vector<T> UncheckedValues;
+  std::vector<T> DefaultValues; // Values set in the XML configuration.
   bool DefaultsValid;
   bool Initialized;
 
@@ -166,7 +167,7 @@ public:
       }
     else
       {
-      modified = !vtkstd::equal(this->UncheckedValues.begin(), this->UncheckedValues.end(), values);
+      modified = !std::equal(this->UncheckedValues.begin(), this->UncheckedValues.end(), values);
       }
 
     if(!modified)
@@ -174,7 +175,7 @@ public:
       return 1;
       }
 
-    vtkstd::copy(values, values + numArgs, this->UncheckedValues.begin());
+    std::copy(values, values + numArgs, this->UncheckedValues.begin());
 
     this->Property->InvokeEvent(vtkCommand::UncheckedPropertyModifiedEvent);
     return 1;
@@ -239,14 +240,14 @@ public:
       }
     else
       {
-      modified = !vtkstd::equal(this->Values.begin(), this->Values.end(), values);
+      modified = !std::equal(this->Values.begin(), this->Values.end(), values);
       }
     if (!modified && this->Initialized)
       {
       return 1;
       }
 
-    vtkstd::copy(values, values+numArgs, this->Values.begin());
+    std::copy(values, values+numArgs, this->Values.begin());
 
     this->Initialized = true;
     this->Property->Modified();
@@ -305,6 +306,10 @@ public:
     for (unsigned int i=0; i<size; i++)
       {
       vtksys_ios::ostringstream valueAsString;
+
+      // set the stream precision to the maximum precision for the data type
+      valueAsString.precision(std::numeric_limits<T>::digits10);
+
       valueAsString << this->GetElement(i);
 
       vtkPVXMLElement* elementElement = vtkPVXMLElement::New();

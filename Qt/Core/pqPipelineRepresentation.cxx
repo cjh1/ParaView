@@ -52,7 +52,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "vtkSMGlobalPropertiesManager.h"
 #include "vtkSMPVRepresentationProxy.h"
 #include "vtkSMPropertyHelper.h"
-#include "vtkSMProxyManager.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMProxyProperty.h"
 #include "vtkScalarsToColors.h"
 #include "vtkSmartPointer.h"
@@ -204,8 +204,8 @@ pqScalarOpacityFunction* pqPipelineRepresentation::getScalarOpacityFunction()
 {
   if (this->getRepresentationType().compare("Volume", Qt::CaseInsensitive) == 0)
     {
-    pqServerManagerModel* smmodel = 
-      pqApplicationCore::instance()->getServerManagerModel();
+    pqServerManagerModel* smmodel =
+        pqApplicationCore::instance()->getServerManagerModel();
     vtkSMProxy* opf = this->getScalarOpacityFunctionProxy();
 
     return (opf? smmodel->findItem<pqScalarOpacityFunction*>(opf): 0);
@@ -221,7 +221,7 @@ void pqPipelineRepresentation::createHelperProxies()
 
   if (proxy->GetProperty("ScalarOpacityFunction"))
     {
-    vtkSMProxyManager* pxm = this->proxyManager();
+    vtkSMSessionProxyManager* pxm = this->proxyManager();
     vtkSMProxy* opacityFunction = 
       pxm->NewProxy("piecewise_functions", "PiecewiseFunction");
     opacityFunction->UpdateVTKObjects();
@@ -264,7 +264,7 @@ void pqPipelineRepresentation::setDefaultPropertyValues()
 {
   // We deliberately don;t call superclass. For somereason,
   // its messing up with the scalar coloring.
-  // this->Superclass::setDefaultPropertyValues();
+  this->Superclass::setDefaultPropertyValues();
 
   if (!this->isVisible() &&
       !pqApplicationCore::instance()->getDisplayPolicy()->getHideByDefault()
@@ -940,6 +940,7 @@ QList<QString> pqPipelineRepresentation::getColorFields()
   if (cellinfo)// && representation != vtkSMPVRepresentationProxy::VOLUME)
     {
     int dataSetType = -1;
+    int compositeDataType = -1;
     vtkPVDataInformation* dataInfo = NULL;
     if(this->getInput())
       {
@@ -948,18 +949,22 @@ QList<QString> pqPipelineRepresentation::getColorFields()
     if(dataInfo)
       {
       dataSetType = dataInfo->GetDataSetType();// get data set type
+      compositeDataType = dataInfo->GetCompositeDataSetType();
       }
 
-    if (representation.compare("Volume", Qt::CaseInsensitive) != 0 || (
-        dataSetType != VTK_UNIFORM_GRID &&
-        dataSetType != VTK_STRUCTURED_POINTS &&
-        dataSetType != VTK_IMAGE_DATA ))
+    if ((compositeDataType == VTK_OVERLAPPING_AMR) ||
+        (compositeDataType == VTK_HIERARCHICAL_BOX_DATA_SET) ||
+        (representation.compare("Volume", Qt::CaseInsensitive) != 0) ||
+        (dataSetType != VTK_UNIFORM_GRID &&
+         dataSetType != VTK_STRUCTURED_POINTS &&
+         dataSetType != VTK_IMAGE_DATA ))
       {
       for(int i=0; i<cellinfo->GetNumberOfArrays(); i++)
         {
         vtkPVArrayInformation* info = cellinfo->GetArrayInformation(i);
         if (representation.compare("Volume", Qt::CaseInsensitive) == 0 &&
-          info->GetNumberOfComponents() != 1)
+            !( info->GetNumberOfComponents() == 1 ||
+              info->GetNumberOfComponents() == 4))
           {
           // Skip vectors when volumerendering.
           continue;
@@ -981,7 +986,8 @@ QList<QString> pqPipelineRepresentation::getColorFields()
       {
       vtkPVArrayInformation* info = pointinfo->GetArrayInformation(i);
       if (representation.compare("Volume", Qt::CaseInsensitive) == 0 &&
-        info->GetNumberOfComponents() != 1)
+          !( info->GetNumberOfComponents() == 1 ||
+            info->GetNumberOfComponents() == 4))
         {
         // Skip vectors when volumerendering.
         continue;
@@ -1328,9 +1334,11 @@ vtkSMProxy* pqPipelineRepresentation::createOpacityFunctionProxy(
     opacityFunction = builder->createProxy(
       "piecewise_functions", "PiecewiseFunction", 
       this->getServer(), "piecewise_functions");
-    // Setup default opactiy function to go from 0 to 1.
+    // Setup default opacity function to go from (0.0,0.0) to (1.0,1.0).
+    // We are new setting defaults for midPoint (0.5) and sharpness(0.0) 
     QList<QVariant> values;
-    values << 0.0 << 0.0 << 1.0 << 1.0;
+    values << 0.0 << 0.0 << 0.5 << 0.0 ;
+    values << 1.0 << 1.0 << 0.5 << 0.0 ;
     
     pqSMAdaptor::setMultipleElementProperty(
       opacityFunction->GetProperty("Points"), values);

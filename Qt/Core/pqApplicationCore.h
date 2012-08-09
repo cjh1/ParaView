@@ -53,12 +53,12 @@ class pqServer;
 class pqServerConfigurationCollection;
 class pqServerManagerModel;
 class pqServerManagerObserver;
-class pqServerManagerSelectionModel;
 class pqServerResource;
 class pqSettings;
 class pqTestUtility;
 class pqUndoStack;
 class QApplication;
+class QHelpEngine;
 class QStringList;
 class vtkPVXMLElement;
 class vtkSMGlobalPropertiesManager;
@@ -125,6 +125,14 @@ public:
   /// Unregisters a manager for a particular function, if any.
   void unRegisterManager(const QString& function);
 
+  /// provides access to the help engine. The engine is created the first time
+  /// this method is called.
+  QHelpEngine* helpEngine();
+
+  /// QHelpEngine doesn't like filenames in resource space. This method creates
+  /// a temporary file for the resource and registers that with the QHelpEngine.
+  void registerDocumentation(const QString& filename);
+
   /// ServerManagerObserver observer the vtkSMProxyManager
   /// for changes to the server manager and fires signals on
   /// certain actions such as registeration/unregistration of proxies
@@ -174,11 +182,6 @@ public:
   /// the application. Used to change the active display
   /// policy. The pqApplicationCore takes over the ownership of the display policy.
   void setDisplayPolicy(pqDisplayPolicy* dp);
-
-  /// Returns the server manager selection model which keeps track of the active
-  /// sources/filters.
-  pqServerManagerSelectionModel* getSelectionModel()
-    { return this->SelectionModel; }
 
   /// Provides access to the test utility.
   virtual pqTestUtility* testUtility();
@@ -316,11 +319,11 @@ protected:
   pqProgressManager* ProgressManager;
   pqServerManagerModel* ServerManagerModel;
   pqServerManagerObserver* ServerManagerObserver;
-  pqServerManagerSelectionModel* SelectionModel;
   pqUndoStack* UndoStack;
   pqRecentlyUsedResourcesList *RecentlyUsedResourcesList;
   pqServerConfigurationCollection* ServerConfigurations;
   pqSettings* Settings;
+  QHelpEngine* HelpEngine;
   QPointer<pqTestUtility> TestUtility;
 
 private:
@@ -331,7 +334,6 @@ private:
   static pqApplicationCore* Instance;
   void constructor();
   void createOutputWindow();
-  bool FinalizeOnExit;
 };
 
 #endif

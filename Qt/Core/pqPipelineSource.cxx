@@ -38,17 +38,18 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // ParaView Server Manager.
 #include "vtkClientServerStream.h"
 #include "vtkEventQtSlotConnect.h"
-#include "vtkProcessModule.h"
 #include "vtkPVDataInformation.h"
 #include "vtkPVXMLElement.h"
-#include "vtkSmartPointer.h"
+#include "vtkProcessModule.h"
 #include "vtkSMPropertyHelper.h"
 #include "vtkSMPropertyIterator.h"
 #include "vtkSMPropertyLink.h"
 #include "vtkSMProxyListDomain.h"
-#include "vtkSMProxyManager.h"
 #include "vtkSMProxyProperty.h"
+#include "vtkSMSession.h"
+#include "vtkSMSessionProxyManager.h"
 #include "vtkSMSourceProxy.h"
+#include "vtkSmartPointer.h"
 
 // Qt
 #include <QList>
@@ -60,8 +61,8 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqHelperProxyRegisterUndoElement.h"
 #include "pqOutputPort.h"
 #include "pqPipelineFilter.h"
-#include "pqServer.h"
 #include "pqSMAdaptor.h"
+#include "pqServer.h"
 #include "pqTimeKeeper.h"
 #include "pqUndoStack.h"
 #include "pqXMLUtil.h"
@@ -254,7 +255,7 @@ void pqPipelineSource::removeInternalHelperProxy(const QString& key, vtkSMProxy*
 void pqPipelineSource::createProxiesForProxyListDomains()
 {
   vtkSMProxy* proxy = this->getProxy();
-  vtkSMProxyManager* pxm = proxy->GetProxyManager();
+  vtkSMSessionProxyManager* pxm = this->proxyManager();
   vtkSMPropertyIterator* iter = proxy->NewPropertyIterator();
   for (iter->Begin(); !iter->IsAtEnd(); iter->Next())
     {
@@ -409,15 +410,19 @@ void pqPipelineSource::setDefaultPropertyValues()
 
   this->createAnimationHelpersIfNeeded();
 
-  // This is sort-of-a-hack to ensure that when this operation is redo, all the
-  // helper proxies are discovered correctly. This needs to happen only after
-  // all helper proxies have been created.
-  pqHelperProxyRegisterUndoElement* elem = 
-    pqHelperProxyRegisterUndoElement::New();
-  elem->SetOperationTypeToRedo(); // Redo creation
-  elem->RegisterHelperProxies(this);
-  ADD_UNDO_ELEM(elem);
-  elem->Delete();
+  if ( this->getServer() && this->getServer()->session() &&
+       !this->getServer()->session()->IsMultiClients())
+    {
+    // This is sort-of-a-hack to ensure that when this operation is redo, all the
+    // helper proxies are discovered correctly. This needs to happen only after
+    // all helper proxies have been created.
+    pqHelperProxyRegisterUndoElement* elem =
+        pqHelperProxyRegisterUndoElement::New();
+    elem->SetOperationTypeToRedo(); // Redo creation
+    elem->RegisterHelperProxies(this);
+    ADD_UNDO_ELEM(elem);
+    elem->Delete();
+    }
 }
 
 //-----------------------------------------------------------------------------
@@ -427,7 +432,7 @@ void pqPipelineSource::createAnimationHelpersIfNeeded()
   if (helpers.size() == 0)
     {
     // Create animation helper which assists in animating display properties.
-    vtkSMProxyManager* pxm = this->getProxy()->GetProxyManager();
+    vtkSMSessionProxyManager* pxm = this->proxyManager();
     int numPorts = this->getNumberOfOutputPorts();
     for (int cc=0; cc < numPorts; cc++)
       {

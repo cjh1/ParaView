@@ -40,6 +40,7 @@
 #define __vtkOrderedCompositeDistributor_h
 
 #include "vtkPointSetAlgorithm.h"
+#include "vtkPVConfig.h" // needed for PARAVIEW_USE_MPI
 
 class vtkBSPCuts;
 class vtkDataSet;
@@ -76,10 +77,12 @@ public:
   vtkSetStringMacro(OutputType);
   vtkGetStringMacro(OutputType);
 
+#ifdef PARAVIEW_USE_MPI
   // Description:
   // Set/get some internal filters.
   vtkGetObjectMacro(D3, vtkDistributedDataFilter);
   virtual void SetD3(vtkDistributedDataFilter *);
+#endif
   vtkGetObjectMacro(ToPolyData, vtkDataSetSurfaceFilter);
   virtual void SetToPolyData(vtkDataSetSurfaceFilter *);
 
@@ -90,7 +93,9 @@ protected:
   vtkPKdTree *PKdTree;
   vtkMultiProcessController *Controller;
 
+#ifdef PARAVIEW_USE_MPI
   vtkDistributedDataFilter *D3;
+#endif
   vtkDataSetSurfaceFilter *ToPolyData;
 
   int PassThrough;

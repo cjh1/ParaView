@@ -28,7 +28,7 @@
 #include <vtksys/ios/sstream>
 #include <vtksys/SystemTools.hxx>
 
-#include <vtkstd/string>
+#include <string>
 
 vtkStandardNewMacro(vtkFileSeriesWriter);
 vtkCxxSetObjectMacro(vtkFileSeriesWriter, Writer, vtkAlgorithm);
@@ -46,7 +46,7 @@ vtkFileSeriesWriter::vtkFileSeriesWriter()
   this->NumberOfTimeSteps = 1;
   this->CurrentTimeIndex = 0;
   this->Interpreter = 0;
-  this->SetInterpreter(vtkClientServerInterpreterInitializer::GetInterpreter());
+  this->SetInterpreter(vtkClientServerInterpreterInitializer::GetGlobalInterpreter());
 }
 
 //-----------------------------------------------------------------------------
@@ -85,7 +85,7 @@ int vtkFileSeriesWriter::ProcessRequest(vtkInformation* request,
   vtkInformationVector* outputVector)
 {
 
-  if (request->Has(vtkStreamingDemandDrivenPipeline::REQUEST_UPDATE_EXTENT()) || 
+  if (request->Has(vtkStreamingDemandDrivenPipeline::REQUEST_UPDATE_EXTENT()) ||
     request->Has(vtkDemandDrivenPipeline::REQUEST_INFORMATION()))
     {
     // Let the internal writer handle the request. Then the request will be
@@ -110,7 +110,7 @@ int vtkFileSeriesWriter::RequestInformation(
   vtkInformation *inInfo = inputVector[0]->GetInformationObject(0);
   if ( inInfo->Has(vtkStreamingDemandDrivenPipeline::TIME_STEPS()) )
     {
-    this->NumberOfTimeSteps = 
+    this->NumberOfTimeSteps =
       inInfo->Length( vtkStreamingDemandDrivenPipeline::TIME_STEPS() );
     }
   else
@@ -135,12 +135,12 @@ int vtkFileSeriesWriter::RequestUpdateExtent(
   if (inTimes && this->WriteAllTimeSteps)
     {
     double timeReq = inTimes[this->CurrentTimeIndex];
-    inputVector[0]->GetInformationObject(0)->Set( 
-        vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEPS(), 
-        &timeReq, 1);
+    inputVector[0]->GetInformationObject(0)->Set(
+        vtkStreamingDemandDrivenPipeline::UPDATE_TIME_STEP(),
+        timeReq);
     }
 
-  return 1;  
+  return 1;
 }
 
 //----------------------------------------------------------------------------
@@ -172,7 +172,7 @@ int vtkFileSeriesWriter::RequestData(
       this->CurrentTimeIndex = 0;
       }
     }
-  
+
   return 1;
 }
 //----------------------------------------------------------------------------
@@ -182,11 +182,11 @@ void vtkFileSeriesWriter::WriteATimestep(vtkDataObject* input,
   vtksys_ios::ostringstream fname;
   if (this->WriteAllTimeSteps && this->NumberOfTimeSteps > 1)
     {
-    vtkstd::string path = 
+    std::string path =
       vtksys::SystemTools::GetFilenamePath(this->FileName);
-    vtkstd::string fnamenoext =
+    std::string fnamenoext =
       vtksys::SystemTools::GetFilenameWithoutLastExtension(this->FileName);
-    vtkstd::string ext =
+    std::string ext =
       vtksys::SystemTools::GetFilenameLastExtension(this->FileName);
     fname << path << "/" << fnamenoext << "_" << this->CurrentTimeIndex << ext;
     }
@@ -200,29 +200,25 @@ void vtkFileSeriesWriter::WriteATimestep(vtkDataObject* input,
   vtkSmartPointer<vtkDataObject> clone;
   clone.TakeReference(input->NewInstance());
   clone->ShallowCopy(input);
-  //if(inInfo->Get(vtkDataObject::DATA_EXTENT_TYPE()) == VTK_3D_EXTENT &&
+
+  vtkPVTrivialProducer* tp  = vtkPVTrivialProducer::New();
+  tp->SetOutput(clone);
   if(inInfo->Has(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT()))
     {
-    vtkPVTrivialProducer* trivialProducer =
-      vtkPVTrivialProducer::New();
-    trivialProducer->SetOutput(clone);
-    trivialProducer->FastDelete();
-    int extent[6];
-    inInfo->Get(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), extent);
-    trivialProducer->SetWholeExtent(extent);
-    trivialProducer->GatherExtents();
-
-    clone->GetInformation()->Set(
-      vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), extent, 6);
+    int wholeExtent[6];
+    inInfo->Get(vtkStreamingDemandDrivenPipeline::WHOLE_EXTENT(), wholeExtent);
+    tp->SetWholeExtent(wholeExtent);
+    tp->GatherExtents();
     }
-  this->Writer->SetInputConnection(clone->GetProducerPort());
+  this->Writer->SetInputConnection(tp->GetOutputPort());
+  tp->FastDelete();
   this->SetWriterFileName(fname.str().c_str());
   this->WriteInternal();
   this->Writer->SetInputConnection(0);
 }
 
 //----------------------------------------------------------------------------
-// Overload standard modified time function. If the internal reader is 
+// Overload standard modified time function. If the internal reader is
 // modified, then this object is modified as well.
 unsigned long vtkFileSeriesWriter::GetMTime()
 {

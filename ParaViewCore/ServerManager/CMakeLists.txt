@@ -18,12 +18,38 @@ IF(NOT WIN32)
   ADD_DEFINITIONS(-D_HPUX_SOURCE)
 ENDIF(NOT WIN32)
 
+
+# configure the vtkInitializationHelper with the enable VTK modules
+set(vtk-module-instantiator-headers)
+set(vtk-module-init-functions)
+set(vtk-module-init-calls)
+
+foreach(_module ${VTK_MODULES_ENABLED})
+  if(NOT ${_module}_EXCLUDE_FROM_WRAPPING) 
+    set(vtk-module-instantiator-headers
+      "${vtk-module-instantiator-headers}#include \"${_module}Instantiator.h\"\n")
+    set(vtk-module-init-functions
+      "${vtk-module-init-functions}extern \"C\" void ${_module}CS_Initialize(vtkClientServerInterpreter*);\n")
+    set(vtk-module-init-calls
+      "${vtk-module-init-calls}${_module}CS_Initialize(interp);\n")
+  endif()    
+endforeach()
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/vtkInitializationHelper.cxx.in
+  ${CMAKE_CURRENT_BINARY_DIR}/vtkInitializationHelper.cxx @ONLY)
+
+# why do we need todo this?
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/vtkInitializationHelper.h
+  ${CMAKE_CURRENT_BINARY_DIR}/vtkInitializationHelper.h @COPYONLY)
+
 SET (Kit_SRCS
-  vtkInitializationHelper.cxx
+  ${CMAKE_CURRENT_BINARY_DIR}/vtkInitializationHelper.cxx
   vtkPVComparativeAnimationCue.cxx
   vtkPVComparativeView.cxx
   vtkPVKeyFrameAnimationCueForProxies.cxx
+  vtkPVMultiServerDataSource.cxx
   vtkPVRepresentationAnimationHelper.cxx
+  vtkPVServerSideAnimationPlayer.cxx
   vtkSMAnimationScene.cxx
   vtkSMAnimationSceneGeometryWriter.cxx
   vtkSMAnimationSceneImageWriter.cxx
@@ -35,6 +61,7 @@ SET (Kit_SRCS
   vtkSMBooleanDomain.cxx
   vtkSMBoundsDomain.cxx
   vtkSMBoxRepresentationProxy.cxx
+#  vtkSMCacheBasedProxyLocator.cxx
   vtkSMCameraConfigurationReader.cxx
   vtkSMCameraConfigurationWriter.cxx
   vtkSMCameraLink.cxx
@@ -51,6 +78,8 @@ SET (Kit_SRCS
   vtkSMContextNamedOptionsProxy.cxx
   vtkSMContextViewProxy.cxx
   vtkSMCSVExporterProxy.cxx
+  vtkSMDataDeliveryManager.cxx
+  vtkSMDataSourceProxy.cxx
   vtkSMDataTypeDomain.cxx
   vtkSMDeserializer.cxx
   vtkSMDeserializerProtobuf.cxx
@@ -79,6 +108,7 @@ SET (Kit_SRCS
   vtkSMIntRangeDomain.cxx
   vtkSMIntVectorProperty.cxx
   vtkSMLink.cxx
+  vtkSMMultiServerSourceProxy.cxx
   vtkSMNamedPropertyIterator.cxx
   vtkSMNewWidgetRepresentationProxy.cxx
   vtkSMNullProxy.cxx
@@ -94,6 +124,7 @@ SET (Kit_SRCS
   vtkSMPluginManager.cxx
   vtkSMProperty.cxx
   vtkSMPropertyAdaptor.cxx
+  vtkSMPropertyGroup.cxx
   vtkSMPropertyHelper.cxx
   vtkSMPropertyIterator.cxx
   vtkSMPropertyLink.cxx
@@ -125,6 +156,8 @@ SET (Kit_SRCS
   vtkSMServerStateLocator.cxx
   vtkSMSession.cxx
   vtkSMSessionClient.cxx
+  vtkSMSessionObject.cxx
+  vtkSMSessionProxyManager.cxx
   vtkSMSILDomain.cxx
   vtkSMSILModel.cxx
   vtkSMSourceProxy.cxx
@@ -140,12 +173,12 @@ SET (Kit_SRCS
   vtkSMTextWidgetRepresentationProxy.cxx
   vtkSMTimeKeeper.cxx
   vtkSMTimeKeeperProxy.cxx
-  vtkSMTwoDRenderViewProxy.cxx
   vtkSMUndoElement.cxx
   vtkSMUndoStack.cxx
   vtkSMUndoStackBuilder.cxx
   vtkSMUtilities.cxx
   vtkSMVectorProperty.cxx
+  vtkSMViewLayoutProxy.cxx
   vtkSMViewProxy.cxx
   vtkSMWidgetRepresentationProxy.cxx
   vtkSMWriterFactory.cxx
@@ -163,14 +196,17 @@ SET( ServerManager_SRCS
 
 SET_SOURCE_FILES_PROPERTIES(
   vtkInitializationHelper.cxx
+  vtkPVDataDeliveryManager.cxx
   vtkSMAnimationSceneWriter.cxx
   vtkSMDeserializer.cxx
   vtkSMDomain.cxx
   vtkSMExporterProxy.cxx
   vtkSMLink.cxx
   vtkSMPropertyHelper.cxx
+  vtkSMProxyManager.cxx # since New() is protected.
   vtkSMRemoteObject.cxx
   vtkSMSession.cxx
+  vtkSMSessionProxyManager.cxx # since New() is non-standard.
   vtkSMStateVersionControllerBase.cxx
   vtkSMUndoElement.cxx
   vtkSMVectorProperty.cxx
@@ -214,7 +250,7 @@ INCLUDE_DIRECTORIES(${VTKCLIENTSERVER_INCLUDE_DIR})
 # Create ClientServer wrappers for ParaView classes.
 SET(_VTK_BINARY_DIR "${VTK_BINARY_DIR}")
 SET(VTK_BINARY_DIR "${CMAKE_CURRENT_BINARY_DIR}")
-INCLUDE(${VTK_CMAKE_DIR}/vtkExportKit.cmake)
+INCLUDE(${ParaView_CMAKE_DIR}/VTKMono/vtkExportKit.cmake)
 VTK_EXPORT_KIT("${KIT}" "${KIT_UPCASE}" "${Kit_SRCS};${ServerManagerCS_SRCS};${ExtraParaViewServerManagerNonWrapped_SRCS}")
 SET(VTK_BINARY_DIR "${_VTK_BINARY_DIR}")
 
@@ -230,7 +266,7 @@ IF(PARAVIEW_MINIMAL_BUILD)
 ENDIF(PARAVIEW_MINIMAL_BUILD)
 
 # Create the library.
-VTK_ADD_LIBRARY(vtk${KIT}
+PVVTK_ADD_LIBRARY(vtk${KIT}
   ${ServerManager_SRCS}
   ${MIN_INIT_SRC}
   ${CMInstantiator_SRCS}
@@ -240,6 +276,7 @@ VTK_ADD_LIBRARY(vtk${KIT}
 TARGET_LINK_LIBRARIES(vtk${KIT}
   vtkPVServerImplementationCS
   vtkPVServerImplementation
+  vtkTestingRendering
   )
 
 IF(PARAVIEW_USE_VISITBRIDGE)
@@ -293,18 +330,18 @@ SET(GUI_CONFIG_FILES
   ParaViewWriters
 )
 
-IF(NOT CMAKE_CROSSCOMPILING)
-  add_executable_with_forwarding(PV_EXE_SUFFIX
-    vtkSMExtractDocumentation vtkSMExtractDocumentation.cxx)
-  TARGET_LINK_LIBRARIES(vtkSMExtractDocumentation${PV_EXE_SUFFIX} vtkPVServerManager)
-  EXPORT(TARGETS vtkSMExtractDocumentation${PV_EXE_SUFFIX} FILE ${EXPORT_EXECUTABLES_FILE} NAMESPACE "${EXPORT_EXECUTABLES_NAMESPACE}" APPEND)
-ENDIF(NOT CMAKE_CROSSCOMPILING)
+#IF(NOT CMAKE_CROSSCOMPILING)
+#  add_executable_with_forwarding(PV_EXE_SUFFIX
+#    vtkSMExtractDocumentation vtkSMExtractDocumentation.cxx)
+#  TARGET_LINK_LIBRARIES(vtkSMExtractDocumentation${PV_EXE_SUFFIX} vtkPVServerManager )
+#  EXPORT(TARGETS vtkSMExtractDocumentation${PV_EXE_SUFFIX} FILE ${EXPORT_EXECUTABLES_FILE} NAMESPACE "${EXPORT_EXECUTABLES_NAMESPACE}" APPEND)
+#ENDIF(NOT CMAKE_CROSSCOMPILING)
 
 # FIXME: DUDE! Dependency on Qt code in ServerManager!!!!
 
-CONFIGURE_FILE(${ParaView_CMAKE_DIR}/ExecuteSMExtractDocumentation.cmake.in
-  ${ParaView_BINARY_DIR}/CMake/ExecuteSMExtractDocumentation.cmake
-  @ONLY)
+#CONFIGURE_FILE(${ParaView_CMAKE_DIR}/ExecuteSMExtractDocumentation.cmake.in
+#  ${ParaView_BINARY_DIR}/CMake/ExecuteSMExtractDocumentation.cmake
+#  @ONLY)
 
 FOREACH(gcf ${GUI_CONFIG_FILES})
   SET(fullXMLFile ${ParaView_SOURCE_DIR}/Applications/ParaView/${gcf}.xml)

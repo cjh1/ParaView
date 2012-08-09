@@ -380,12 +380,11 @@ void pqNamedWidgets::linkObject(QObject* object, pqSMProxy proxy,
         pqFieldSelectionAdaptor* adaptor = new
           pqFieldSelectionAdaptor(comboBox, SMProperty);
         adaptor->setObjectName("FieldSelectionAdaptor");
-        property_manager->registerLink(
-          adaptor, "attributeMode", SIGNAL(selectionChanged()),
-          proxy, SMProperty, 0);
-        property_manager->registerLink(
-          adaptor, "scalar", SIGNAL(selectionChanged()),
-          proxy, SMProperty, 1);
+        property_manager->registerLink(adaptor,
+                                       "selection",
+                                       SIGNAL(selectionChanged()),
+                                       proxy,
+                                       SMProperty);
         }
       }
     }
@@ -689,7 +688,8 @@ void pqNamedWidgets::unlinkObject(QObject* object, pqSMProxy proxy,
 static void processHints(QGridLayout* panelLayout,
                          vtkSMProxy* smProxy,
                          QStringList& propertiesToHide,
-                         QStringList& propertiesToShow)
+                         QStringList& propertiesToShow,
+                         bool summaryOnly)
 {
   // Obtain the list of input ports, we don't show any widgets for input ports.
   QList<const char*> inputPortNames = 
@@ -704,6 +704,12 @@ static void processHints(QGridLayout* panelLayout,
   // etc etc.
   vtkPVXMLElement* hints = smProxy->GetHints();
   if (!hints)
+    {
+    return;
+    }
+
+  // check if we are only showing summary properties
+  if(summaryOnly && hints->FindNestedElementByName("ShowInSummaryPanel") == 0)
     {
     return;
     }
@@ -847,7 +853,7 @@ void pqNamedWidgets::createWidgets(QGridLayout* panelLayout, vtkSMProxy* pxy, bo
 
   QStringList propertiesToHide;
   QStringList propertiesToShow;
-  processHints(panelLayout, pxy, propertiesToHide, propertiesToShow);
+  processHints(panelLayout, pxy, propertiesToHide, propertiesToShow, summaryOnly);
 
   // Skip the filename property, unless the user has indicated that the filename
   // should be shown on the property panel.
@@ -1056,7 +1062,7 @@ void pqNamedWidgets::createWidgets(QGridLayout* panelLayout, vtkSMProxy* pxy, bo
         h->setData(0, Qt::DisplayRole, header);
         tw->setHeaderItem(h);
         tw->setObjectName(name);
-        pqTreeWidgetSelectionHelper* helper = 
+        pqTreeWidgetSelectionHelper* helper =
           new pqTreeWidgetSelectionHelper(tw);
         helper->setObjectName(QString("%1Helper").arg(propertyName));
         panelLayout->addWidget(tw, rowCount, 0, 1, 2);

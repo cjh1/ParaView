@@ -32,6 +32,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include "pqSpreadSheetViewWidget.h"
 
 #include "pqSpreadSheetViewModel.h"
+#include "pqNonEditableStyledItemDelegate.h"
 
 #include <QHeaderView>
 #include <QItemDelegate>
@@ -53,9 +54,9 @@ namespace
 }
 
 //-----------------------------------------------------------------------------
-class pqSpreadSheetViewWidget::pqDelegate : public QItemDelegate
+class pqSpreadSheetViewWidget::pqDelegate : public pqNonEditableStyledItemDelegate
 {
-  typedef QItemDelegate Superclass;
+  typedef pqNonEditableStyledItemDelegate Superclass;
 public:
   pqDelegate(QObject* _parent=0):Superclass(_parent)
   {
@@ -76,53 +77,40 @@ public:
       this->Top : index;
     const_cast<pqDelegate*>(this)->Bottom = (this->Bottom.isValid() && index < this->Bottom)?
       this->Bottom : index;
-
-    this->Superclass::paint(painter, option, index);
-    }
-
-  // special text painter that does tab stops to line up multi-component data
-  // at this point, multi-component data is already in string format and 
-  // has '\t' characters separating each component
-  // taken from QItemDelegate::drawDisplay and tweaked
-  void drawDisplay(QPainter* painter, const QStyleOptionViewItem& option,
-    const QRect & r, const QString & text ) const
-    {
+    QString text = index.data().toString();
     if (text.isEmpty())
       return;
 
-    QPen pen = painter->pen();
-    QPalette::ColorGroup cg = option.state & QStyle::State_Enabled
-      ? QPalette::Normal : QPalette::Disabled;
+    // Make sure the text color is appropriate when selection
+    QPalette::ColorGroup cg =
+        (option.state & QStyle::State_Enabled) ?
+          QPalette::Normal : QPalette::Disabled;
     if (cg == QPalette::Normal && !(option.state & QStyle::State_Active))
+      {
       cg = QPalette::Inactive;
-    if (option.state & QStyle::State_Selected) {
-      painter->fillRect(r, option.palette.brush(cg, QPalette::Highlight));
+      }
+    if (option.state & QStyle::State_Selected)
+      {
       painter->setPen(option.palette.color(cg, QPalette::HighlightedText));
-    } else {
+      }
+    else
+      {
       painter->setPen(option.palette.color(cg, QPalette::Text));
-    }
+      }
 
-    if (option.state & QStyle::State_Editing) {
-      painter->save();
-      painter->setPen(option.palette.color(cg, QPalette::Text));
-      painter->drawRect(r.adjusted(0, 0, -1, -1));
-      painter->restore();
-    }
-
-    const int textMargin = QApplication::style()->pixelMetric(
-      QStyle::PM_FocusFrameHMargin) + 1;
-    QRect textRect = r.adjusted(textMargin, 0, -textMargin, 0); // remove width padding
+    const int textMargin =
+        QApplication::style()->pixelMetric(QStyle::PM_FocusFrameHMargin) + 1;
+    QRect textRect = option.rect.adjusted(textMargin, 0, -textMargin, 0);
     this->TextOption.setWrapMode(QTextOption::ManualWrap);
     this->TextOption.setTextDirection(option.direction);
     this->TextOption.setAlignment(
       QStyle::visualAlignment(option.direction, option.displayAlignment));
-    // assume this is representative of the largest number we'll show
     
-    int len = option.fontMetrics.width("-8.88888e-8888 ");
-    this->TextOption.setTabStop(len);
+    int split = text.split("\t").length();
+    this->TextOption.setTabStop(option.rect.width()/split);
     this->TextLayout.setTextOption(this->TextOption);
     this->TextLayout.setFont(option.font);
-    this->TextLayout.setText(this->replaceNewLine(text));
+    this->TextLayout.setText(text);
 
     QSizeF textLayoutSize = this->doTextLayout(textRect.width());
 
@@ -169,15 +157,6 @@ public:
     }
     this->TextLayout.endLayout();
     return QSizeF(widthUsed, height);
-    }
-
-  static QString replaceNewLine(QString text)
-    {
-    const QChar nl = QLatin1Char('\n');
-    for (int i = 0; i < text.count(); ++i)
-      if (text.at(i) == nl)
-        text[i] = QChar::LineSeparator;
-    return text;
     }
 
   QModelIndex Top;
@@ -229,17 +208,22 @@ void pqSpreadSheetViewWidget::setModel(QAbstractItemModel* model)
     QObject::connect(
       model, SIGNAL(modelReset()),
       this, SLOT(onHeaderDataChanged()));
+    QObject::connect(
+      model, SIGNAL(modelReset()),
+      this, SLOT(sortColumns()));
     }
 }
 
 //-----------------------------------------------------------------------------
 void pqSpreadSheetViewWidget::onHeaderDataChanged()
 {
-  for (int cc=0; cc < this->model()->columnCount(); cc++)
+  pqSpreadSheetViewModel* shModel =
+      qobject_cast<pqSpreadSheetViewModel*>(this->model());
+  for (int cc=0; cc < shModel->columnCount(); cc++)
     {
     QString headerTitle =
       this->model()->headerData(cc, Qt::Horizontal).toString();
-    this->setColumnHidden(cc, pqIsColumnInternal(headerTitle));
+    this->setColumnHidden(cc, !shModel->isVisible(cc) || pqIsColumnInternal(headerTitle));
     }
 }
 
@@ -325,5 +309,26 @@ void pqSpreadSheetViewWidget::onSortIndicatorChanged(int section, Qt::SortOrder 
   else
     {
     this->horizontalHeader()->setSortIndicatorShown(false);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void pqSpreadSheetViewWidget::sortColumns()
+{
+  int targetVisualIndex = 0;
+  const char* order[6] = {"Point ID", "Cell ID", "Block Number", "ObjectID", "Points", "Structured Coordinates"};
+
+  for(int k=0 ; k < 6; k++)
+    {
+    const char* columnSearched = order[k];
+    for(int i=0; i < this->model()->columnCount(); i++)
+      {
+      QString name = this->model()->headerData(i, Qt::Horizontal).toString();
+      if(name == columnSearched)
+        {
+        this->horizontalHeader()->moveSection(this->horizontalHeader()->visualIndex(i), targetVisualIndex++);
+        break;
+        }
+      }
     }
 }

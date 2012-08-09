@@ -119,9 +119,10 @@ int vtkStreamedMandelbrot::RequestInformation (
     cerr << endl;
     );
     //save split path in translator
-    vtkImageData *outData = vtkImageData::SafeDownCast(
-      outInfo->Get(vtkDataObject::DATA_OBJECT()));
-    vtkExtentTranslator *et = outData->GetExtentTranslator();
+    //vtkImageData *outData = vtkImageData::SafeDownCast(
+    //  outInfo->Get(vtkDataObject::DATA_OBJECT()));
+    vtkExtentTranslator *et = vtkExtentTranslator::SafeDownCast(
+      outInfo->Get(vtkStreamingDemandDrivenPipeline::EXTENT_TRANSLATOR()));
     et->SetSplitPath(pathLen, splitPath);
 
     this->GridSampler->SetSpacing(sSpacing);
@@ -197,7 +198,7 @@ int vtkStreamedMandelbrot::RequestData
   // the superclasses "Execute()" method.
   int *ext = outInfo->Get(vtkStreamingDemandDrivenPipeline::UPDATE_EXTENT());
   data->SetExtent(ext);
-  data->AllocateScalars();
+  data->AllocateScalars(outInfo);
 
   int a0, a1, a2;
   float *ptr;

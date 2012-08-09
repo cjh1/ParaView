@@ -16,6 +16,8 @@
 // .SECTION Description
 // vtkGlyph3DRepresentation is a representation that uses the vtkGlyph3DMapper
 // for rendering glyphs.
+// Note that vtkGlyph3DRepresentation requires that the "glyph" source data is
+// available on all rendering processes.
 
 #ifndef __vtkGlyph3DRepresentation_h
 #define __vtkGlyph3DRepresentation_h
@@ -63,6 +65,13 @@ public:
   void SetMasking(bool val);
   double* GetBounds();
 
+  //***************************************************************************
+  // Overridden to forward to the vtkGlyph3DMapper.
+  virtual void SetInterpolateScalarsBeforeMapping(int val);
+  virtual void SetLookupTable(vtkScalarsToColors* val);
+  virtual void SetMapScalars(int val);
+  virtual void SetStatic(int val);
+
 //BTX
 protected:
   vtkGlyph3DRepresentation();
@@ -92,15 +101,15 @@ protected:
   virtual vtkPVLODActor* GetRenderedProp()
     { return this->GlyphActor; }
 
+  // Description:
+  // Overridden to ensure that the coloring decisions are passed over to the
+  // glyph mapper.
+  virtual void UpdateColoringParameters();
+
   vtkGlyph3DMapper* GlyphMapper;
   vtkGlyph3DMapper* LODGlyphMapper;
-  vtkPVUpdateSuppressor* GlyphUpdateSuppressor;
-  vtkPVUpdateSuppressor* LODGlyphUpdateSuppressor;
 
   vtkPVLODActor* GlyphActor;
-  vtkQuadricClustering* GlyphDecimator;
-  vtkUnstructuredDataDeliveryFilter* DataCollector;
-  vtkUnstructuredDataDeliveryFilter* LODDataCollector;
   vtkPVArrowSource* DummySource;
 
   bool MeshVisibility;

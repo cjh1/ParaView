@@ -11,9 +11,9 @@ INCLUDE_DIRECTORIES(
   )
 
 SET(LIBS vtkPVServerManager)
-IF(VTK_USE_MPI)
+IF(PARAVIEW_USE_MPI)
   INCLUDE_DIRECTORIES(${MPI_INCLUDE_PATH})
-ENDIF(VTK_USE_MPI)
+ENDIF(PARAVIEW_USE_MPI)
 
 # Add main server executables.
 SET(PV_EXE_LIST
@@ -43,6 +43,9 @@ FOREACH(pvexe ${PV_EXE_LIST})
   ENDIF(NOT PV_INSTALL_NO_RUNTIME)
 
 ENDFOREACH(pvexe)
+
+SET(PV_TEST_USE_RANDOM_PORTS ON CACHE BOOL
+  "Use random port numbers when testing client-server configurations.")
 
 SET(PV_TEST_INIT_COMMAND "" CACHE STRING
   "Command to run before a test begins. Multiple commands are separated by ';'.")

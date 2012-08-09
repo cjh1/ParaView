@@ -68,6 +68,10 @@
   <Proxy group="sources" name="WindBladeReader" />
   <Proxy group="sources" name="NetCDFCAMReader" />
   <Proxy group="sources" name="NetCDFPOPReader" />
+  <Proxy group="sources" name="UnstructuredPOPReader" />
   <Proxy group="sources" name="PNetCDFPOPReader" />
   <Proxy group="sources" name="MPASReader" />
+  <Proxy group="sources" name="EnzoParticlesReader" />
+  <Proxy group="sources" name="FlashParticlesReader" />
+  <Proxy group="sources" name="CMLMoleculeReader"/>
 </ParaViewReaders>
