@@ -673,3 +673,116 @@ class ParaViewWebFileListing(ParaViewWebProtocol):
                 groups.remove(groupIdx[gName])
 
         return result
+
+from boto.s3.connection import S3Connection
+import boto
+import traceback
+
+print "boto"
+
+class ParaViewWebS3Listing(ParaViewWebProtocol):
+
+    def __init__(self, bucketName, excludeRegex=r"^\.|~$|^\$", groupRegex=r"[0-9]+\."):
+        """
+        Configure the way the WebFile browser will expose the server content.
+         - basePath: specify the base directory that we should start with
+         - name: Name of that base directory that will show up on the web
+         - excludeRegex: Regular expression of what should be excluded from the list of files/directories
+        """
+
+        try:
+
+            self.bucketName = bucketName
+            self.pattern = re.compile(excludeRegex)
+            self.gPattern = re.compile(groupRegex)
+
+            self.conn = S3Connection('AKIAIA4R7RO42A2R7WRA', 'Piy7Ypo2uIUm9Phf5/ixNh+owmjfD8MVEmRPLHdY')
+            self.bucket = self.conn.get_bucket('nasanex')
+        except:
+            print "Exception"
+
+
+    @exportRpc("listServerDirectory")
+    def listServerDirectory(self, dir=''):
+        """
+        RPC Callback to list a server directory relative to the basePath
+        provided at start-up.
+        """
+
+        if dir[0] == '/':
+            dir = dir[1:]
+
+        print "++++++ listing %s" % dir
+
+        if dir == '.':
+            dir = ''
+
+        path = []
+        if len(dir) > 0:
+            path += dir.replace('\\','/').split('/')
+
+        files = []
+        dirs = []
+
+        try:
+            ls_prefix = dir
+            if dir.startswith(self.bucketName):
+                ls_prefix = dir[len(self.bucketName)+1: ]
+
+
+            if ls_prefix and not ls_prefix.endswith('/'):
+                ls_prefix += '/'
+
+
+
+            for entry in self.bucket.list(prefix=str(ls_prefix), delimiter='/'):
+                print "entry %s %s " % (type(entry), entry.name)
+
+                name = entry.name[len(ls_prefix):]
+                if not name:
+                    continue
+
+                if isinstance(entry, boto.s3.prefix.Prefix):
+                    dirs.append(name.replace('/', ''))
+                elif isinstance(entry, boto.s3.key.Key):
+                    file = {'label': name.replace('/', ''), 'size': entry.size}
+                    files.append(file)
+        except:
+            print "exceptions"
+            print traceback.format_exc()
+
+        import os.path
+
+        dir_name = os.path.basename(dir)
+
+        result =  { 'label': dir_name, 'files': files, 'dirs': dirs, 'groups': [], 'path': path }
+
+        if not dir:
+            result['label'] = self.bucketName
+            result['path'] = [self.bucketName]
+
+        print "result: %s" % str(result)
+
+        # Filter files to create groups
+        files.sort()
+        groups = result['groups']
+        groupIdx = {}
+        filesToRemove = []
+        for file in files:
+            fileSplit = re.split(self.gPattern, file['label'])
+            if len(fileSplit) == 2:
+                filesToRemove.append(file)
+                gName = '*.'.join(fileSplit)
+                if groupIdx.has_key(gName):
+                    groupIdx[gName]['files'].append(file['label'])
+                else:
+                    groupIdx[gName] = { 'files' : [file['label']], 'label': gName }
+                    groups.append(groupIdx[gName])
+        for file in filesToRemove:
+            gName = '*.'.join(re.split(self.gPattern, file['label']))
+            if len(groupIdx[gName]['files']) > 1:
+                files.remove(file)
+            else:
+                groups.remove(groupIdx[gName])
+
+        return result

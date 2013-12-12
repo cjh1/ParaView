@@ -10,6 +10,7 @@ set (WEB_APPLICATIONS
   FileViewer
   Visualizer
   Parallel
+  S3Viewer
 )
 
 # Create paraview/web directory
