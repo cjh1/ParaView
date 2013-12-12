@@ -6,6 +6,7 @@ very specific web application.
 import os, sys, logging, types, inspect, traceback, logging, re
 from time import time
 
+
 # import RPC annotation
 from autobahn.wamp import exportRpc
 
@@ -712,8 +713,6 @@ class ParaViewWebS3Listing(ParaViewWebProtocol):
         if dir[0] == '/':
             dir = dir[1:]
 
-        print "++++++ listing %s" % dir
-
         if dir == '.':
             dir = ''
 
@@ -733,10 +732,7 @@ class ParaViewWebS3Listing(ParaViewWebProtocol):
             if ls_prefix and not ls_prefix.endswith('/'):
                 ls_prefix += '/'
 
-
-
             for entry in self.bucket.list(prefix=str(ls_prefix), delimiter='/'):
-                print "entry %s %s " % (type(entry), entry.name)
 
                 name = entry.name[len(ls_prefix):]
                 if not name:
@@ -748,10 +744,8 @@ class ParaViewWebS3Listing(ParaViewWebProtocol):
                     file = {'label': name.replace('/', ''), 'size': entry.size}
                     files.append(file)
         except:
-            print "exceptions"
             print traceback.format_exc()
 
-        import os.path
 
         dir_name = os.path.basename(dir)
 
@@ -760,8 +754,6 @@ class ParaViewWebS3Listing(ParaViewWebProtocol):
         if not dir:
             result['label'] = self.bucketName
             result['path'] = [self.bucketName]
-
-        print "result: %s" % str(result)
 
         # Filter files to create groups
         files.sort()

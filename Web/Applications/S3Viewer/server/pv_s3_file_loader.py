@@ -79,12 +79,9 @@ class _FileOpener(pv_wamp.PVServerProtocol):
     rsPort = 11111
 
     def initialize(self):
-        print "HHHHHHHH"
         # Bring used components
         self.registerVtkWebProtocol(pv_protocols.ParaViewWebStartupRemoteConnection(_FileOpener.dsHost, _FileOpener.dsPort, _FileOpener.rsHost, _FileOpener.rsPort))
         self.registerVtkWebProtocol(pv_protocols.ParaViewWebS3Listing(_FileOpener.bucket))
-
-        print "AFTER ///"
 
         self.registerVtkWebProtocol(pv_protocols.ParaViewWebMouseHandler())
         self.registerVtkWebProtocol(pv_protocols.ParaViewWebViewPort())
