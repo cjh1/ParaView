@@ -683,7 +683,7 @@ print "boto"
 
 class ParaViewWebS3Listing(ParaViewWebProtocol):
 
-    def __init__(self, bucketName, excludeRegex=r"^\.|~$|^\$", groupRegex=r"[0-9]+\."):
+    def __init__(self, bucketName, awsAccessKeyId, awsSecretAccessKey, excludeRegex=r"^\.|~$|^\$", groupRegex=r"[0-9]+\."):
         """
         Configure the way the WebFile browser will expose the server content.
          - basePath: specify the base directory that we should start with
@@ -697,7 +697,7 @@ class ParaViewWebS3Listing(ParaViewWebProtocol):
             self.pattern = re.compile(excludeRegex)
             self.gPattern = re.compile(groupRegex)
 
-            self.conn = S3Connection('AKIAIA4R7RO42A2R7WRA', 'Piy7Ypo2uIUm9Phf5/ixNh+owmjfD8MVEmRPLHdY')
+            self.conn = S3Connection(awsAccessKeyId, awsSecretAccessKey)
             self.bucket = self.conn.get_bucket('nasanex')
         except:
             print "Exception"
@@ -776,5 +776,7 @@ class ParaViewWebS3Listing(ParaViewWebProtocol):
                 files.remove(file)
             else:
                 groups.remove(groupIdx[gName])
+
+        print str(result)
 
         return result

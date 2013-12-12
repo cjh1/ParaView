@@ -37,11 +37,16 @@ r"""
              Secret key that should be provided by the client to allow it to make any
              WebSocket communication. The client will assume if none is given that the
              server expect "vtkweb-secret" as secret key.
+
+        --awsAccessKeyId - ID for accessing AWS
+
+        --awsSecretAccessKey - Auth key for AWS
 """
 
 # import to process args
 import sys
 import os
+import tempfile
 
 # import paraview modules.
 from paraview import simple
@@ -61,6 +66,9 @@ except ImportError:
     # the source for the same as _argparse and we use it instead.
     import _argparse as argparse
 
+from boto.s3.connection import S3Connection
+import boto
+
 # =============================================================================
 # Create custom File Opener class to handle clients requests
 # =============================================================================
@@ -70,7 +78,7 @@ class _FileOpener(pv_wamp.PVServerProtocol):
     # Application configuration
     reader     = None
     fileToLoad = None
-    bucket = "nasanex"
+    bucketName = "nasanex"
     view       = None
     authKey    = "vtkweb-secret"
     dsHost = None
@@ -78,16 +86,19 @@ class _FileOpener(pv_wamp.PVServerProtocol):
     rsHost = None
     rsPort = 11111
 
+
     def initialize(self):
         # Bring used components
         self.registerVtkWebProtocol(pv_protocols.ParaViewWebStartupRemoteConnection(_FileOpener.dsHost, _FileOpener.dsPort, _FileOpener.rsHost, _FileOpener.rsPort))
-        self.registerVtkWebProtocol(pv_protocols.ParaViewWebS3Listing(_FileOpener.bucket))
+        self.registerVtkWebProtocol(pv_protocols.ParaViewWebS3Listing(_FileOpener.bucketName, _FileOpener.awsAccessKeyId, _FileOpener.awsSecretAccessKey))
 
         self.registerVtkWebProtocol(pv_protocols.ParaViewWebMouseHandler())
         self.registerVtkWebProtocol(pv_protocols.ParaViewWebViewPort())
         self.registerVtkWebProtocol(pv_protocols.ParaViewWebViewPortImageDelivery())
         self.registerVtkWebProtocol(pv_protocols.ParaViewWebViewPortGeometryDelivery())
         self.registerVtkWebProtocol(pv_protocols.ParaViewWebTimeHandler())
+        self.s3Conn = S3Connection(_FileOpener.awsAccessKeyId, _FileOpener.awsSecretAccessKey)
+        self.bucket = self.s3Conn.get_bucket(_FileOpener.bucketName)
 
         # Update authentication key to use
         self.updateSecret(_FileOpener.authKey)
@@ -109,14 +120,34 @@ class _FileOpener(pv_wamp.PVServerProtocol):
         simple.SetActiveView(_FileOpener.view)
 
     def openFile(self, files):
-        id = ""
+        downloaded_files = []
+        try:
+            for file in files:
+                key = _FileOpener.bucket.get_key(file)
+                path = '/tmp%s' % file
+
+                dir = os.path.dirname(path);
+                if not os.path.exists(dir):
+                    os.makedirs(dir)
+
+                print 'Downloading ...'
+                with open(path, 'w') as fp:
+                    key.get_file(fp)
+
+                print 'Complete'
+
+                downloaded_files.append(path)
+        except:
+            import traceback
+            print traceback.format_exc()
+
         if _FileOpener.reader:
             try:
                 simple.Delete(_FileOpener.reader)
             except:
                 _FileOpener.reader = None
         try:
-            _FileOpener.reader = simple.OpenDataFile(files)
+            _FileOpener.reader = simple.OpenDataFile(downloaded_files)
             simple.Show()
             simple.Render()
             simple.ResetCamera()
@@ -128,11 +159,15 @@ class _FileOpener(pv_wamp.PVServerProtocol):
     @exportRpc("openFileFromPath")
     def openFileFromPath(self, files):
         fileToLoad = []
-        if type(files) == list:
-            for file in files:
-               fileToLoad.append(os.path.join(_FileOpener.pathToList, file))
-        else:
-            fileToLoad.append(os.path.join(_FileOpener.pathToList, files))
+        if not type(files) == list:
+            files = [files]
+
+        for file in files:
+            if file[0] == '.':
+                file = file[1:]
+
+            fileToLoad.append(file)
+
         return self.openFile(fileToLoad)
 
 # =============================================================================
@@ -153,7 +188,8 @@ if __name__ == "__main__":
     parser.add_argument("--ds-port", default=11111, type=int, help="Port number to connect to for DataServer", dest="dsPort")
     parser.add_argument("--rs-host", default=None, help="Hostname to connect to for RenderServer", dest="rsHost")
     parser.add_argument("--rs-port", default=11111, type=int, help="Port number to connect to for RenderServer", dest="rsPort")
-
+    parser.add_argument("--awsAccessKeyId", dest='awsAccessKeyId')
+    parser.add_argument("--awsSecretAccessKey", dest='awsSecretAccessKey')
 
     # Exctract arguments
     args = parser.parse_args()
@@ -166,6 +202,7 @@ if __name__ == "__main__":
     _FileOpener.dsPort     = args.dsPort
     _FileOpener.rsHost     = args.rsHost
     _FileOpener.rsPort     = args.rsPort
-
+    _FileOpener.awsAccessKeyId = args.awsAccessKeyId
+    _FileOpener.awsSecretAccessKey = args.awsSecretAccessKey
     # Start server
     server.start_webserver(options=args, protocol=_FileOpener)
